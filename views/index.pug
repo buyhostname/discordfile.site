@@ -63,8 +63,12 @@ block content
               a(href=`/u/${u.username}` class="px-4 py-2 bg-neutral-800 hover:bg-neutral-700 rounded-lg text-sm font-medium transition")
                 | View Public
               if u.privateCount > 0
-                button(class="pay-btn px-4 py-2 bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-400 hover:to-orange-400 rounded-lg text-sm font-medium transition" data-user-id=u.id data-price=u.privatePrice)
-                  | Unlock $#{(u.privatePrice / 100).toFixed(2)}
+                if u.hasUnlocked
+                  a(href=`/u/${u.username}` class="px-4 py-2 bg-gradient-to-r from-emerald-500 to-green-500 hover:from-emerald-400 hover:to-green-400 rounded-lg text-sm font-medium transition")
+                    | View Premium
+                else
+                  button(class="pay-btn px-4 py-2 bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-400 hover:to-orange-400 rounded-lg text-sm font-medium transition" data-user-id=u.id data-price=u.privatePrice)
+                    | Unlock $#{(u.privatePrice / 100).toFixed(2)}
     else
       //- Empty state
       div(class="text-center py-20")
