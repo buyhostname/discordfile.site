@@ -1,0 +1,37 @@
+doctype html
+html(lang="en")
+  head
+    meta(charset="UTF-8")
+    meta(name="viewport" content="width=device-width, initial-scale=1.0")
+    title #{title || 'Discord File'}
+    script(src="https://cdn.tailwindcss.com")
+    link(href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet")
+    style.
+      body { font-family: 'Inter', system-ui, sans-serif; }
+      .masonry {
+        column-count: 1;
+        column-gap: 1rem;
+      }
+      @media (min-width: 640px) {
+        .masonry { column-count: 2; }
+      }
+      @media (min-width: 1024px) {
+        .masonry { column-count: 3; }
+      }
+      @media (min-width: 1280px) {
+        .masonry { column-count: 4; }
+      }
+      .masonry-item {
+        break-inside: avoid;
+        margin-bottom: 1rem;
+      }
+      .image-card img {
+        transition: transform 0.2s ease;
+      }
+      .image-card:hover img {
+        transform: scale(1.02);
+      }
+    script(src="/bridge.js")
+  
+  body(class="min-h-screen bg-black text-white")
+    block content
