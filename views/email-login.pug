@@ -34,11 +34,9 @@ block content
         div(class="bg-red-500/10 border border-red-500/20 rounded-lg px-4 py-3 mb-6")
           p(class="text-red-400 text-sm") Login link expired. Please request a new one.
       
-      if success && loginUrl
-        //- Show the login link
+      if success === 'check_email'
         div(class="bg-green-500/10 border border-green-500/20 rounded-lg px-4 py-3 mb-6")
-          p(class="text-green-400 text-sm mb-3") Click the link below to login:
-          a(href=loginUrl class="block text-indigo-400 hover:text-indigo-300 text-sm break-all") #{loginUrl}
+          p(class="text-green-400 text-sm") Check your email for a login link!
       else
         form(method="POST" action="/auth/email" class="space-y-6")
           div

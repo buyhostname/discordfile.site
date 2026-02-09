@@ -641,13 +641,8 @@ app.post('/auth/email', async (req, res) => {
     // Log it for debugging
     console.log(`Login link for ${email}: ${loginUrl}`);
     
-    // TODO: Send email with loginUrl in production
-    // For now, show the link on the page
-    return res.render('email-login', {
-        title: 'Login with Email',
-        success: true,
-        loginUrl
-    });
+    // TODO: Send email with loginUrl
+    res.redirect('/auth/email?success=check_email');
 });
 
 // Verify email login token
