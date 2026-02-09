@@ -294,15 +294,24 @@ app.get('/', async (req, res) => {
         include: {
             _count: {
                 select: { 
-                    images: { where: { isPrivate: false } }
+                    images: true
                 }
             }
         }
     });
     
+    // Get public and private counts for each user
+    const usersWithCounts = await Promise.all(users.map(async (u) => {
+        const [publicCount, privateCount] = await Promise.all([
+            prisma.image.count({ where: { userId: u.id, isPrivate: false } }),
+            prisma.image.count({ where: { userId: u.id, isPrivate: true } })
+        ]);
+        return { ...u, publicCount, privateCount };
+    }));
+    
     res.render('index', {
         title: 'Discord File',
-        users
+        users: usersWithCounts
     });
 });
 

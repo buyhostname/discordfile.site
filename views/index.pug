@@ -33,30 +33,38 @@ block content
             | Creator Login
 
   //- Main content
-  main(class="container mx-auto max-w-6xl px-4 py-8")
+  main(class="container mx-auto max-w-3xl px-4 py-8")
     //- Hero section
     div(class="text-center mb-12")
       h1(class="text-4xl font-bold mb-4") Discover Creators
       p(class="text-xl text-neutral-400") Browse profiles and unlock exclusive content
 
-    //- Users grid
+    //- Users list
     if users && users.length > 0
-      div(class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4")
+      div(class="space-y-4")
         each u in users
-          a(href=`/u/${u.username}` class="group block")
-            div(class="bg-neutral-900 rounded-xl p-4 text-center hover:bg-neutral-800 transition")
-              //- Avatar
-              div(class="relative mx-auto w-20 h-20 mb-3")
-                if u.avatar
-                  img(src=`https://cdn.discordapp.com/avatars/${u.discordId}/${u.avatar}.png?size=128` alt=u.username class="w-full h-full rounded-full object-cover ring-2 ring-neutral-700 group-hover:ring-indigo-500 transition")
-                else
-                  div(class="w-full h-full rounded-full bg-gradient-to-br from-indigo-600 to-purple-600 flex items-center justify-center text-2xl font-bold ring-2 ring-neutral-700 group-hover:ring-indigo-500 transition")
-                    | #{u.username.charAt(0).toUpperCase()}
-              //- Username
-              h3(class="font-semibold truncate group-hover:text-indigo-400 transition") #{u.username}
-              //- Image count
-              p(class="text-sm text-neutral-500 mt-1")
-                | #{u._count.images} public image#{u._count.images !== 1 ? 's' : ''}
+          div(class="bg-neutral-900 rounded-xl p-4 flex items-center gap-4")
+            //- Avatar
+            div(class="flex-shrink-0")
+              if u.avatar
+                img(src=`https://cdn.discordapp.com/avatars/${u.discordId}/${u.avatar}.png?size=128` alt=u.username class="w-14 h-14 rounded-full object-cover ring-2 ring-neutral-700")
+              else
+                div(class="w-14 h-14 rounded-full bg-gradient-to-br from-indigo-600 to-purple-600 flex items-center justify-center text-xl font-bold ring-2 ring-neutral-700")
+                  | #{u.username.charAt(0).toUpperCase()}
+            
+            //- Info
+            div(class="flex-1 min-w-0")
+              h3(class="font-semibold truncate") #{u.username}
+              p(class="text-sm text-neutral-400")
+                | #{u.publicCount} public, #{u.privateCount} private
+            
+            //- Actions
+            div(class="flex items-center gap-2 flex-shrink-0")
+              a(href=`/u/${u.username}` class="px-4 py-2 bg-neutral-800 hover:bg-neutral-700 rounded-lg text-sm font-medium transition")
+                | View Public
+              if u.privateCount > 0
+                button(class="pay-btn px-4 py-2 bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-400 hover:to-orange-400 rounded-lg text-sm font-medium transition" data-user-id=u.id data-price=u.privatePrice)
+                  | Unlock $#{(u.privatePrice / 100).toFixed(2)}
     else
       //- Empty state
       div(class="text-center py-20")
@@ -73,3 +81,23 @@ block content
   footer(class="border-t border-neutral-800 mt-20")
     div(class="container mx-auto max-w-6xl px-4 py-8 text-center text-neutral-500 text-sm")
       | Discord File
+
+  script.
+    document.querySelectorAll('.pay-btn').forEach(btn => {
+      btn.addEventListener('click', async () => {
+        btn.disabled = true;
+        btn.textContent = 'Loading...';
+        
+        const userId = btn.dataset.userId;
+        const res = await fetch(`/api/pay/${userId}`, { method: 'POST' });
+        const data = await res.json();
+        
+        if (data.url) {
+          window.location.href = data.url;
+        } else {
+          alert(data.error || 'Payment failed');
+          btn.disabled = false;
+          btn.textContent = `Unlock $${(parseInt(btn.dataset.price) / 100).toFixed(2)}`;
+        }
+      });
+    });
