@@ -3,6 +3,8 @@ const express = require('express');
 const session = require('express-session');
 const path = require('path');
 const fs = require('fs');
+const crypto = require('crypto');
+const jwt = require('jsonwebtoken');
 const { PrismaClient } = require('@prisma/client');
 const { Client, GatewayIntentBits, Partials, OAuth2Scopes, PermissionFlagsBits } = require('discord.js');
 const Stripe = require('stripe');
@@ -12,6 +14,9 @@ const prisma = new PrismaClient();
 const app = express();
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY);
 const resend = process.env.RESEND_API_KEY ? new Resend(process.env.RESEND_API_KEY) : null;
+
+// JWT secret for magic links (use SESSION_SECRET as fallback)
+const JWT_SECRET = process.env.SESSION_SECRET || 'change-me';
 
 app.set('trust proxy', true);
 app.set('view engine', 'pug');
@@ -625,25 +630,33 @@ app.post('/auth/email', async (req, res) => {
         return res.redirect('/auth/email?error=invalid_email');
     }
     
+    const normalizedEmail = email.toLowerCase();
+    
     // Check if this email has any payments (is a viewer)
     const viewer = await prisma.viewer.findUnique({
-        where: { email: email.toLowerCase() }
+        where: { email: normalizedEmail }
     });
     
     if (!viewer) {
         return res.redirect('/auth/email?error=no_account');
     }
     
-    // Generate a login token
-    const crypto = require('crypto');
-    const token = crypto.randomBytes(32).toString('hex');
-    const expiresAt = new Date(Date.now() + 15 * 60 * 1000); // 15 minutes
+    // Generate a unique token ID for one-time use
+    const jti = crypto.randomBytes(16).toString('hex');
     
+    // Create JWT with 15 min expiry
+    const token = jwt.sign(
+        { email: normalizedEmail, jti },
+        JWT_SECRET,
+        { expiresIn: '15m' }
+    );
+    
+    // Store token ID in database for one-time use validation
     await prisma.loginToken.create({
         data: {
-            email: email.toLowerCase(),
-            token,
-            expiresAt
+            email: normalizedEmail,
+            token: jti, // Store just the jti, not the full JWT
+            expiresAt: new Date(Date.now() + 15 * 60 * 1000)
         }
     });
     
@@ -658,7 +671,7 @@ app.post('/auth/email', async (req, res) => {
         try {
             await resend.emails.send({
                 from: process.env.EMAIL_FROM,
-                to: email.toLowerCase(),
+                to: normalizedEmail,
                 subject: 'Your login link',
                 html: `
                     <h2>Login to Discord File</h2>
@@ -676,7 +689,7 @@ app.post('/auth/email', async (req, res) => {
     res.redirect('/auth/email?success=check_email');
 });
 
-// Verify email login token
+// Verify email login token (JWT-based magic link)
 app.get('/auth/email/verify', async (req, res) => {
     const { token } = req.query;
     
@@ -684,36 +697,49 @@ app.get('/auth/email/verify', async (req, res) => {
         return res.redirect('/auth/email?error=invalid_token');
     }
     
-    const loginToken = await prisma.loginToken.findUnique({
-        where: { token }
-    });
-    
-    if (!loginToken || loginToken.used || loginToken.expiresAt < new Date()) {
-        return res.redirect('/auth/email?error=expired_token');
+    try {
+        // Verify and decode JWT
+        const decoded = jwt.verify(token, JWT_SECRET);
+        const { email, jti } = decoded;
+        
+        // Check if token has been used (one-time use)
+        const loginToken = await prisma.loginToken.findUnique({
+            where: { token: jti }
+        });
+        
+        if (!loginToken || loginToken.used) {
+            return res.redirect('/auth/email?error=expired_token');
+        }
+        
+        // Mark token as used
+        await prisma.loginToken.update({
+            where: { token: jti },
+            data: { used: true }
+        });
+        
+        // Find viewer
+        const viewer = await prisma.viewer.findUnique({
+            where: { email }
+        });
+        
+        if (!viewer) {
+            return res.redirect('/auth/email?error=no_account');
+        }
+        
+        // Log in
+        req.session.viewer = {
+            id: viewer.id,
+            email: viewer.email
+        };
+        
+        res.redirect('/?logged_in=true');
+    } catch (err) {
+        console.error('Token verification failed:', err.message);
+        if (err.name === 'TokenExpiredError') {
+            return res.redirect('/auth/email?error=expired_token');
+        }
+        return res.redirect('/auth/email?error=invalid_token');
     }
-    
-    // Mark token as used
-    await prisma.loginToken.update({
-        where: { token },
-        data: { used: true }
-    });
-    
-    // Find viewer
-    const viewer = await prisma.viewer.findUnique({
-        where: { email: loginToken.email }
-    });
-    
-    if (!viewer) {
-        return res.redirect('/auth/email?error=no_account');
-    }
-    
-    // Log in
-    req.session.viewer = {
-        id: viewer.id,
-        email: viewer.email
-    };
-    
-    res.redirect('/?logged_in=true');
 });
 
 // Viewer logout
