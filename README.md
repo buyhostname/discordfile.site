@@ -10,7 +10,11 @@ A Discord-based image hosting platform where creators upload images via a Discor
 
 ## Quick Setup
 
-[![Deploy on Hoston](https://hoston.ai/badge.svg)](https://hoston.ai/deploy?repo=discord-file)
+Deploy on [hoston.ai](https://hoston.ai) - copy and paste this for the chat:
+
+```
+copy this project and setup https://github.com/buyhostname/discordfile.site
+```
 
 Or follow the [setup guide](./AGENTS.md) for manual installation.
 
