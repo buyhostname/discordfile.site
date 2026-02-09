@@ -528,16 +528,26 @@ app.post('/webhook/stripe', async (req, res) => {
     let event;
     
     try {
-        event = JSON.parse(req.body.toString());
+        // Verify webhook signature if secret is configured
+        if (process.env.STRIPE_WEBHOOK_SECRET) {
+            const sig = req.headers['stripe-signature'];
+            event = stripe.webhooks.constructEvent(req.body, sig, process.env.STRIPE_WEBHOOK_SECRET);
+        } else {
+            event = JSON.parse(req.body.toString());
+        }
     } catch (err) {
-        console.error('Webhook error:', err);
+        console.error('Webhook error:', err.message);
         return res.status(400).send(`Webhook Error: ${err.message}`);
     }
+    
+    console.log('Webhook received:', event.type);
     
     if (event.type === 'checkout.session.completed') {
         const session = event.data.object;
         const email = session.customer_details?.email || session.customer_email;
         const toUserId = session.metadata?.toUserId;
+        
+        console.log('Payment completed:', { email, toUserId });
         
         if (email && toUserId) {
             // Create or get viewer
@@ -560,7 +570,7 @@ app.post('/webhook/stripe', async (req, res) => {
                 }
             });
             
-            console.log(`Payment completed: ${email} unlocked ${toUserId}`);
+            console.log(`Payment recorded: ${email} unlocked ${toUserId}`);
         }
     }
     

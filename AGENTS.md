@@ -82,7 +82,33 @@ Before starting, ensure the user has:
 
 ---
 
-## Step 5: Session Secret
+## Step 5: Stripe Webhook Setup
+
+After receiving the Stripe secret key, set up the webhook automatically using the Stripe CLI.
+
+**Install Stripe CLI (if not installed):**
+```bash
+curl -s https://packages.stripe.dev/api/security/keypair/stripe-cli-gpg/public | gpg --dearmor | sudo tee /usr/share/keyrings/stripe.gpg > /dev/null
+echo "deb [signed-by=/usr/share/keyrings/stripe.gpg] https://packages.stripe.dev/stripe-cli-debian-local stable main" | sudo tee /etc/apt/sources.list.d/stripe.list > /dev/null
+sudo apt update && sudo apt install -y stripe
+```
+
+**Create the webhook using the domain from Step 3:**
+```bash
+stripe webhook_endpoints create \
+  --api-key "{STRIPE_SECRET_KEY}" \
+  --url "https://{domain}/webhook/stripe" \
+  --enabled-events checkout.session.completed
+```
+
+**Save the webhook secret** from the response (the `secret` field starting with `whsec_`) to `.env`:
+```env
+STRIPE_WEBHOOK_SECRET=whsec_xxxxx
+```
+
+---
+
+## Step 6: Session Secret
 
 **Generate automatically or ask:**
 
@@ -94,7 +120,7 @@ Before starting, ensure the user has:
 
 ---
 
-## Step 6: Database Setup
+## Step 7: Database Setup
 
 **Ask the user:**
 
@@ -150,7 +176,7 @@ EXIT;
 
 ---
 
-## Step 7: Write Configuration
+## Step 8: Write Configuration
 
 Once all values are collected, update the `.env` file:
 
@@ -173,11 +199,12 @@ DATABASE_URL="file:./dev.db"
 
 STRIPE_PUBLISHABLE_KEY={collected_publishable_key}
 STRIPE_SECRET_KEY={collected_secret_key}
+STRIPE_WEBHOOK_SECRET={webhook_secret_from_step_5}
 ```
 
 ---
 
-## Step 8: Install Dependencies & Initialize Database
+## Step 9: Install Dependencies & Initialize Database
 
 Run:
 ```bash
@@ -222,10 +249,6 @@ npm start
 >
 > The bot invite link will be auto-generated and saved to `.env` on first startup.
 
----
-
-## Troubleshooting
-
 ### Bot not responding to messages
 - Ensure "Message Content Intent" is enabled in Discord Bot settings
 - Check PM2 logs: `pm2 logs main-3000`
@@ -236,7 +259,9 @@ npm start
 
 ### Stripe payments not working
 - Ensure you're using the correct key type (test vs live)
-- For production, set up the Stripe webhook at `/webhook/stripe`
+- Verify the webhook was created: `stripe webhook_endpoints list --api-key "$STRIPE_SECRET_KEY"`
+- Check that `STRIPE_WEBHOOK_SECRET` is set in `.env`
+- Test webhook manually: Check PM2 logs for "Webhook received" messages after a payment
 
 ### Database connection errors
 - **SQLite**: Ensure the app has write permissions to the directory
@@ -267,6 +292,7 @@ npx prisma db push
 | `DISCORD_REDIRECT_URI` | OAuth callback URL | Set to `https://yourdomain/auth/discord/callback` |
 | `STRIPE_PUBLISHABLE_KEY` | Public Stripe key | Stripe Dashboard > API keys |
 | `STRIPE_SECRET_KEY` | Private Stripe key | Stripe Dashboard > API keys |
+| `STRIPE_WEBHOOK_SECRET` | Webhook signing secret | Created via Stripe CLI |
 | `SESSION_SECRET` | Session encryption key | Generate with `openssl rand -hex 32` |
 | `DATABASE_URL` | Database connection string | See database setup section |
 | `PORT` | Server port | Default: `3000` |
