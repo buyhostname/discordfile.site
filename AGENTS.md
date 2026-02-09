@@ -126,6 +126,8 @@ STRIPE_WEBHOOK_SECRET=whsec_xxxxx
 > - **API Key** (starts with `re_`)
 > - **From Email** (e.g., `Discord File <noreply@yourdomain.com>`)
 
+**Note:** Setting up email on hoston.ai will automatically make the Resend API key work for sending emails, as long as the domain is entered in `.env`.
+
 **If user skips this step:**
 
 Email sending will be disabled. Login links will only be logged to the console for debugging.
