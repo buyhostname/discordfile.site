@@ -94,7 +94,63 @@ Before starting, ensure the user has:
 
 ---
 
-## Step 6: Write Configuration
+## Step 6: Database Setup
+
+**Ask the user:**
+
+> Which database would you like to use?
+>
+> 1. **SQLite** (default, simple, no setup required)
+> 2. **MySQL** (recommended for production)
+
+**If SQLite (default):**
+
+The default configuration uses SQLite. No additional setup needed:
+```env
+DATABASE_URL="file:./dev.db"
+```
+
+**If MySQL:**
+
+> Please provide your MySQL connection details:
+> - Host (e.g., `localhost` or `db.example.com`)
+> - Port (default: `3306`)
+> - Database name
+> - Username
+> - Password
+
+Then update the Prisma schema and `.env`:
+
+1. Update `prisma/schema.prisma`:
+```prisma
+datasource db {
+  provider = "mysql"
+  url      = env("DATABASE_URL")
+}
+```
+
+2. Set the DATABASE_URL in `.env`:
+```env
+DATABASE_URL="mysql://username:password@host:port/database"
+```
+
+**Creating a MySQL database (if needed):**
+
+```bash
+# Connect to MySQL as root
+mysql -u root -p
+
+# Create database and user
+CREATE DATABASE discordfile;
+CREATE USER 'discordfile'@'localhost' IDENTIFIED BY 'your_secure_password';
+GRANT ALL PRIVILEGES ON discordfile.* TO 'discordfile'@'localhost';
+FLUSH PRIVILEGES;
+EXIT;
+```
+
+---
+
+## Step 7: Write Configuration
 
 Once all values are collected, update the `.env` file:
 
@@ -109,7 +165,11 @@ DISCORD_BOT_TOKEN={collected_bot_token}
 
 SESSION_SECRET={generated_or_provided_secret}
 
+# SQLite (default)
 DATABASE_URL="file:./dev.db"
+
+# Or MySQL
+# DATABASE_URL="mysql://username:password@localhost:3306/discordfile"
 
 STRIPE_PUBLISHABLE_KEY={collected_publishable_key}
 STRIPE_SECRET_KEY={collected_secret_key}
@@ -117,17 +177,38 @@ STRIPE_SECRET_KEY={collected_secret_key}
 
 ---
 
-## Step 7: Initialize Database & Start
+## Step 8: Install Dependencies & Initialize Database
 
 Run:
 ```bash
+npm install
+npx prisma generate
 npx prisma db push
-pm2 restart main-3000 --update-env
 ```
 
 ---
 
-## Step 8: Verify Setup
+## Step 9: Start the Application
+
+**Using PM2 (recommended for production):**
+```bash
+pm2 start npm --name "main-3000" -- start
+pm2 save
+```
+
+**Or restart if already configured:**
+```bash
+pm2 restart main-3000 --update-env
+```
+
+**For development:**
+```bash
+npm start
+```
+
+---
+
+## Step 10: Verify Setup
 
 **Tell the user:**
 
@@ -139,7 +220,7 @@ pm2 restart main-3000 --update-env
 > 4. Post an image in a server channel - should react with a checkmark
 > 5. Visit your profile to see the images
 >
-> The bot invite link will be auto-generated and shown in the footer.
+> The bot invite link will be auto-generated and saved to `.env` on first startup.
 
 ---
 
@@ -157,6 +238,23 @@ pm2 restart main-3000 --update-env
 - Ensure you're using the correct key type (test vs live)
 - For production, set up the Stripe webhook at `/webhook/stripe`
 
+### Database connection errors
+- **SQLite**: Ensure the app has write permissions to the directory
+- **MySQL**: Verify credentials and that the MySQL server is running
+  ```bash
+  # Test MySQL connection
+  mysql -u username -p -h host database
+  ```
+- Run `npx prisma db push` after any schema changes
+
+### Prisma errors after changing database provider
+If switching between SQLite and MySQL:
+```bash
+rm -rf node_modules/.prisma
+npx prisma generate
+npx prisma db push
+```
+
 ---
 
 ## Environment Variables Reference
@@ -170,4 +268,14 @@ pm2 restart main-3000 --update-env
 | `STRIPE_PUBLISHABLE_KEY` | Public Stripe key | Stripe Dashboard > API keys |
 | `STRIPE_SECRET_KEY` | Private Stripe key | Stripe Dashboard > API keys |
 | `SESSION_SECRET` | Session encryption key | Generate with `openssl rand -hex 32` |
-| `DATABASE_URL` | SQLite database path | Default: `file:./dev.db` |
+| `DATABASE_URL` | Database connection string | See database setup section |
+| `PORT` | Server port | Default: `3000` |
+| `PRODUCTION` | Enable production mode | Set to `true` for production |
+
+## Database URL Formats
+
+| Database | Format |
+|----------|--------|
+| SQLite | `file:./dev.db` |
+| MySQL | `mysql://USER:PASSWORD@HOST:PORT/DATABASE` |
+| PostgreSQL | `postgresql://USER:PASSWORD@HOST:PORT/DATABASE` |
