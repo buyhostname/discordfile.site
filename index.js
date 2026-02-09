@@ -635,21 +635,19 @@ app.post('/auth/email', async (req, res) => {
         }
     });
     
-    // For now, just show the link (in production, send via email)
+    // Generate login URL
     const loginUrl = `https://${req.hostname}/auth/email/verify?token=${token}`;
     
-    // In development, redirect to show the link
-    // In production, you'd send an email and show a "check your email" message
-    if (process.env.PRODUCTION !== 'true') {
-        return res.render('email-login', {
-            title: 'Login with Email',
-            success: true,
-            loginUrl // Show link in dev mode
-        });
-    }
+    // Log it for debugging
+    console.log(`Login link for ${email}: ${loginUrl}`);
     
-    // TODO: Send email with loginUrl
-    res.redirect('/auth/email?success=check_email');
+    // TODO: Send email with loginUrl in production
+    // For now, show the link on the page
+    return res.render('email-login', {
+        title: 'Login with Email',
+        success: true,
+        loginUrl
+    });
 });
 
 // Verify email login token
