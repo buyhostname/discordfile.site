@@ -34,6 +34,10 @@ block content
         div(class="bg-red-500/10 border border-red-500/20 rounded-lg px-4 py-3 mb-6")
           p(class="text-red-400 text-sm") Login link expired. Please request a new one.
       
+      if error === 'too_many_attempts'
+        div(class="bg-red-500/10 border border-red-500/20 rounded-lg px-4 py-3 mb-6")
+          p(class="text-red-400 text-sm") Too many failed attempts. Please request a new login link.
+      
       if success === 'check_email'
         div(class="bg-green-500/10 border border-green-500/20 rounded-lg px-4 py-3 mb-6")
           p(class="text-green-400 text-sm") Check your email for a login link!

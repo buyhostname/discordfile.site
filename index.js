@@ -644,6 +644,9 @@ app.post('/auth/email', async (req, res) => {
     // Generate a unique token ID for one-time use
     const jti = crypto.randomBytes(16).toString('hex');
     
+    // Generate 6-character OTP
+    const otp = crypto.randomInt(100000, 999999).toString();
+    
     // Create JWT with 15 min expiry
     const token = jwt.sign(
         { email: normalizedEmail, jti },
@@ -651,11 +654,12 @@ app.post('/auth/email', async (req, res) => {
         { expiresIn: '15m' }
     );
     
-    // Store token ID in database for one-time use validation
+    // Store token ID and OTP in database
     await prisma.loginToken.create({
         data: {
             email: normalizedEmail,
-            token: jti, // Store just the jti, not the full JWT
+            token: jti,
+            otp,
             expiresAt: new Date(Date.now() + 15 * 60 * 1000)
         }
     });
@@ -665,6 +669,7 @@ app.post('/auth/email', async (req, res) => {
     
     // Log it for debugging
     console.log(`Login link for ${email}: ${loginUrl}`);
+    console.log(`OTP for ${email}: ${otp}`);
     
     // Send email if Resend is configured
     if (resend && process.env.EMAIL_FROM) {
@@ -672,12 +677,15 @@ app.post('/auth/email', async (req, res) => {
             await resend.emails.send({
                 from: process.env.EMAIL_FROM,
                 to: normalizedEmail,
-                subject: 'Your login link',
+                subject: 'Your login code',
                 html: `
                     <h2>Login to Discord File</h2>
-                    <p>Click the link below to log in. This link expires in 15 minutes.</p>
-                    <p><a href="${loginUrl}" style="display: inline-block; padding: 12px 24px; background: #6366f1; color: white; text-decoration: none; border-radius: 8px;">Login Now</a></p>
-                    <p style="color: #666; font-size: 12px;">Or copy this link: ${loginUrl}</p>
+                    <p>Your one-time login code is:</p>
+                    <p style="font-size: 32px; font-weight: bold; letter-spacing: 8px; color: #6366f1; margin: 20px 0;">${otp}</p>
+                    <p style="color: #666;">This code expires in 15 minutes. You have 2 attempts to enter it correctly.</p>
+                    <hr style="border: none; border-top: 1px solid #eee; margin: 20px 0;">
+                    <p style="color: #666; font-size: 12px;">Or click this link to login instantly:</p>
+                    <p><a href="${loginUrl}" style="color: #6366f1;">${loginUrl}</a></p>
                 `
             });
             console.log(`Login email sent to ${email}`);
@@ -686,7 +694,96 @@ app.post('/auth/email', async (req, res) => {
         }
     }
     
-    res.redirect('/auth/email?success=check_email');
+    // Redirect to OTP entry page
+    res.redirect(`/auth/email/code?t=${jti}`);
+});
+
+// OTP code entry page
+app.get('/auth/email/code', async (req, res) => {
+    const { t, error } = req.query;
+    
+    if (!t) {
+        return res.redirect('/auth/email?error=invalid_token');
+    }
+    
+    // Check if token exists and is valid
+    const loginToken = await prisma.loginToken.findUnique({
+        where: { token: t }
+    });
+    
+    if (!loginToken || loginToken.used || loginToken.expiresAt < new Date() || loginToken.attempts >= 2) {
+        return res.redirect('/auth/email?error=expired_token');
+    }
+    
+    res.render('email-code', {
+        title: 'Enter Code',
+        tokenId: t,
+        email: loginToken.email,
+        attemptsLeft: 2 - loginToken.attempts,
+        error
+    });
+});
+
+// Verify OTP code
+app.post('/auth/email/code', async (req, res) => {
+    const { t, code } = req.body;
+    
+    if (!t || !code) {
+        return res.redirect('/auth/email?error=invalid_token');
+    }
+    
+    const loginToken = await prisma.loginToken.findUnique({
+        where: { token: t }
+    });
+    
+    if (!loginToken || loginToken.used || loginToken.expiresAt < new Date()) {
+        return res.redirect('/auth/email?error=expired_token');
+    }
+    
+    // Check attempts
+    if (loginToken.attempts >= 2) {
+        await prisma.loginToken.update({
+            where: { token: t },
+            data: { used: true }
+        });
+        return res.redirect('/auth/email?error=too_many_attempts');
+    }
+    
+    // Verify OTP
+    if (code.trim() !== loginToken.otp) {
+        await prisma.loginToken.update({
+            where: { token: t },
+            data: { attempts: loginToken.attempts + 1 }
+        });
+        const attemptsLeft = 2 - (loginToken.attempts + 1);
+        if (attemptsLeft <= 0) {
+            return res.redirect('/auth/email?error=too_many_attempts');
+        }
+        return res.redirect(`/auth/email/code?t=${t}&error=wrong_code`);
+    }
+    
+    // Mark token as used
+    await prisma.loginToken.update({
+        where: { token: t },
+        data: { used: true }
+    });
+    
+    // Find viewer
+    const viewer = await prisma.viewer.findUnique({
+        where: { email: loginToken.email }
+    });
+    
+    if (!viewer) {
+        return res.redirect('/auth/email?error=no_account');
+    }
+    
+    // Log in
+    req.session.viewer = {
+        id: viewer.id,
+        email: viewer.email
+    };
+    
+    res.redirect('/?logged_in=true');
 });
 
 // Verify email login token (JWT-based magic link)

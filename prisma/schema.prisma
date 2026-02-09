@@ -83,8 +83,10 @@ model LoginToken {
   id        String   @id @default(cuid())
   email     String
   token     String   @unique
+  otp       String?  // 6-character OTP code
   expiresAt DateTime
   used      Boolean  @default(false)
+  attempts  Int      @default(0) // Track failed OTP attempts (max 2)
   createdAt DateTime @default(now())
 
   @@index([email])
