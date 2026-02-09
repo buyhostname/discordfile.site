@@ -7,16 +7,29 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
+// Creators - users who upload via Discord
 model User {
-  id            String   @id @default(cuid())
-  discordId     String   @unique
-  username      String
-  discriminator String?
-  email         String?
-  avatar        String?
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
-  images        Image[]
+  id              String    @id @default(cuid())
+  discordId       String    @unique
+  username        String
+  discriminator   String?
+  email           String?
+  avatar          String?
+  bio             String?
+  privatePrice    Int       @default(500) // Price in cents ($5.00 default)
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+  images          Image[]
+  paymentsReceived Payment[] @relation("PaymentTo")
+}
+
+// Viewers - users who pay to view content (login via email)
+model Viewer {
+  id              String    @id @default(cuid())
+  email           String    @unique
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+  payments        Payment[] @relation("PaymentFrom")
 }
 
 model Image {
@@ -24,6 +37,7 @@ model Image {
   url         String
   proxyUrl    String?
   filename    String
+  description String?
   contentType String?
   width       Int?
   height      Int?
@@ -31,10 +45,48 @@ model Image {
   messageId   String
   channelId   String
   guildId     String?
+  isPrivate   Boolean  @default(false)
   createdAt   DateTime @default(now())
   userId      String
   user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId])
   @@index([createdAt])
+  @@index([isPrivate])
+}
+
+model Payment {
+  id                String   @id @default(cuid())
+  stripePaymentId   String   @unique
+  stripeSessionId   String?
+  email             String   // Email used for payment
+  amount            Int      // in cents
+  status            String   @default("pending") // pending, completed, failed
+  createdAt         DateTime @default(now())
+  
+  // Viewer who paid (optional - created after payment)
+  viewerId          String?
+  viewer            Viewer?  @relation("PaymentFrom", fields: [viewerId], references: [id], onDelete: SetNull)
+  
+  // Creator they paid to see
+  toUserId          String
+  toUser            User     @relation("PaymentTo", fields: [toUserId], references: [id], onDelete: Cascade)
+
+  @@index([viewerId])
+  @@index([toUserId])
+  @@index([status])
+  @@index([email])
+}
+
+// Email login tokens
+model LoginToken {
+  id        String   @id @default(cuid())
+  email     String
+  token     String   @unique
+  expiresAt DateTime
+  used      Boolean  @default(false)
+  createdAt DateTime @default(now())
+
+  @@index([email])
+  @@index([token])
 }

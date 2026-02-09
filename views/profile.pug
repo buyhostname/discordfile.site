@@ -1,0 +1,227 @@
+extends layout
+
+block content
+  //- Header/Navbar
+  header(class="sticky top-0 z-50 bg-black/90 backdrop-blur border-b border-neutral-800")
+    div(class="container mx-auto max-w-6xl px-4 py-3 flex items-center justify-between")
+      a(href="/" class="text-xl font-bold tracking-tight")
+        span(class="text-white") Discord
+        span(class="text-indigo-400") File
+      
+      div(class="flex items-center gap-4")
+        a(href="/" class="text-sm text-neutral-400 hover:text-white transition") Browse
+        if user
+          a(href="/my" class="text-sm text-neutral-400 hover:text-white transition") My Images
+          div(class="flex items-center gap-3")
+            if user.avatar
+              img(src=`https://cdn.discordapp.com/avatars/${user.discordId}/${user.avatar}.png` alt="Avatar" class="w-8 h-8 rounded-full")
+            else
+              div(class="w-8 h-8 rounded-full bg-indigo-600 flex items-center justify-center text-sm font-medium")
+                | #{user.username.charAt(0).toUpperCase()}
+            a(href="/auth/logout" class="text-sm text-neutral-400 hover:text-white transition") Logout
+        else
+          a(href="/auth/discord" class="inline-flex items-center gap-2 px-4 py-2 bg-indigo-600 hover:bg-indigo-500 rounded-lg text-sm font-medium transition")
+            svg(class="w-5 h-5" viewBox="0 0 24 24" fill="currentColor")
+              path(d="M20.317 4.37a19.791 19.791 0 0 0-4.885-1.515.074.074 0 0 0-.079.037c-.21.375-.444.864-.608 1.25a18.27 18.27 0 0 0-5.487 0 12.64 12.64 0 0 0-.617-1.25.077.077 0 0 0-.079-.037A19.736 19.736 0 0 0 3.677 4.37a.07.07 0 0 0-.032.027C.533 9.046-.32 13.58.099 18.057a.082.082 0 0 0 .031.057 19.9 19.9 0 0 0 5.993 3.03.078.078 0 0 0 .084-.028 14.09 14.09 0 0 0 1.226-1.994.076.076 0 0 0-.041-.106 13.107 13.107 0 0 1-1.872-.892.077.077 0 0 1-.008-.128 10.2 10.2 0 0 0 .372-.292.074.074 0 0 1 .077-.01c3.928 1.793 8.18 1.793 12.062 0a.074.074 0 0 1 .078.01c.12.098.246.198.373.292a.077.077 0 0 1-.006.127 12.299 12.299 0 0 1-1.873.892.077.077 0 0 0-.041.107c.36.698.772 1.362 1.225 1.993a.076.076 0 0 0 .084.028 19.839 19.839 0 0 0 6.002-3.03.077.077 0 0 0 .032-.054c.5-5.177-.838-9.674-3.549-13.66a.061.061 0 0 0-.031-.03zM8.02 15.33c-1.183 0-2.157-1.085-2.157-2.419 0-1.333.956-2.419 2.157-2.419 1.21 0 2.176 1.096 2.157 2.42 0 1.333-.956 2.418-2.157 2.418zm7.975 0c-1.183 0-2.157-1.085-2.157-2.419 0-1.333.955-2.419 2.157-2.419 1.21 0 2.176 1.096 2.157 2.42 0 1.333-.946 2.418-2.157 2.418z")
+            | Login
+
+  //- Main content
+  main(class="container mx-auto max-w-6xl px-4 py-8")
+    //- Profile header
+    div(class="flex flex-col md:flex-row items-center md:items-start gap-6 mb-10")
+      //- Avatar
+      div(class="w-32 h-32 flex-shrink-0")
+        if profileUser.avatar
+          img(src=`https://cdn.discordapp.com/avatars/${profileUser.discordId}/${profileUser.avatar}.png?size=256` alt=profileUser.username class="w-full h-full rounded-full object-cover ring-4 ring-neutral-800")
+        else
+          div(class="w-full h-full rounded-full bg-gradient-to-br from-indigo-600 to-purple-600 flex items-center justify-center text-4xl font-bold ring-4 ring-neutral-800")
+            | #{profileUser.username.charAt(0).toUpperCase()}
+      
+      //- Info
+      div(class="text-center md:text-left flex-1")
+        h1(class="text-3xl font-bold") #{profileUser.username}
+        if profileUser.bio
+          p(class="text-neutral-400 mt-2 max-w-xl") #{profileUser.bio}
+        
+        div(class="flex items-center justify-center md:justify-start gap-6 mt-4 text-sm")
+          div
+            span(class="font-semibold") #{publicImages.length}
+            span(class="text-neutral-400 ml-1") public
+          if privateCount > 0
+            div
+              span(class="font-semibold") #{privateCount}
+              span(class="text-neutral-400 ml-1") private
+        
+        if isOwner
+          a(href="/my" class="inline-block mt-4 px-4 py-2 bg-neutral-800 hover:bg-neutral-700 rounded-lg text-sm transition")
+            | Edit Profile
+
+    //- Public images section
+    if publicImages.length > 0
+      section(class="mb-12")
+        h2(class="text-xl font-semibold mb-4 flex items-center gap-2")
+          svg(class="w-5 h-5 text-green-400" fill="currentColor" viewBox="0 0 20 20")
+            path(d="M10 12a2 2 0 100-4 2 2 0 000 4z")
+            path(fill-rule="evenodd" d="M.458 10C1.732 5.943 5.522 3 10 3s8.268 2.943 9.542 7c-1.274 4.057-5.064 7-9.542 7S1.732 14.057.458 10zM14 10a4 4 0 11-8 0 4 4 0 018 0z" clip-rule="evenodd")
+          | Public Images
+        
+        div(class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4")
+          each image in publicImages
+            div(class="image-card group")
+              div(class="relative rounded-xl overflow-hidden bg-neutral-900 aspect-square")
+                img(src=image.url alt=image.filename class="w-full h-full object-cover" loading="lazy")
+                div(class="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity flex flex-col justify-end")
+                  if image.description
+                    div(class="p-3 text-sm")
+                      p(class="line-clamp-2") #{image.description}
+                  div(class="p-3 pt-0 flex justify-center")
+                    a(href=image.url target="_blank" class="p-2 bg-white/20 hover:bg-white/30 rounded-full transition")
+                      svg(class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24")
+                        path(stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0zM10 7v3m0 0v3m0-3h3m-3 0H7")
+    else if !isOwner
+      div(class="text-center py-10 text-neutral-500")
+        | No public images yet
+
+    //- Private images section
+    if privateCount > 0
+      section
+        h2(class="text-xl font-semibold mb-4 flex items-center gap-2")
+          svg(class="w-5 h-5 text-amber-400" fill="currentColor" viewBox="0 0 20 20")
+            path(fill-rule="evenodd" d="M5 9V7a5 5 0 0110 0v2a2 2 0 012 2v5a2 2 0 01-2 2H5a2 2 0 01-2-2v-5a2 2 0 012-2zm8-2v2H7V7a3 3 0 016 0z" clip-rule="evenodd")
+          | Private Content
+          span(class="text-sm font-normal text-neutral-400") (#{privateCount} images)
+
+        if isOwner || hasAccess
+          //- Show private images
+          div(class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4")
+            each image in privateImages
+              div(class="image-card group")
+                div(class="relative rounded-xl overflow-hidden bg-neutral-900 aspect-square")
+                  img(src=image.url alt=image.filename class="w-full h-full object-cover" loading="lazy")
+                  //- Private badge
+                  div(class="absolute top-2 left-2 px-2 py-1 bg-amber-500/90 rounded-full text-xs font-medium flex items-center gap-1")
+                    svg(class="w-3 h-3" fill="currentColor" viewBox="0 0 20 20")
+                      path(fill-rule="evenodd" d="M5 9V7a5 5 0 0110 0v2a2 2 0 012 2v5a2 2 0 01-2 2H5a2 2 0 01-2-2v-5a2 2 0 012-2zm8-2v2H7V7a3 3 0 016 0z" clip-rule="evenodd")
+                    | Private
+                  div(class="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center")
+                    a(href=image.url target="_blank" class="p-3 bg-white/20 hover:bg-white/30 rounded-full transition")
+                      svg(class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24")
+                        path(stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0zM10 7v3m0 0v3m0-3h3m-3 0H7")
+        else
+          //- Paywall
+          div(class="bg-gradient-to-br from-neutral-900 to-neutral-800 rounded-2xl p-8 text-center border border-neutral-700")
+            div(class="w-20 h-20 mx-auto mb-4 rounded-full bg-amber-500/20 flex items-center justify-center")
+              svg(class="w-10 h-10 text-amber-400" fill="currentColor" viewBox="0 0 20 20")
+                path(fill-rule="evenodd" d="M5 9V7a5 5 0 0110 0v2a2 2 0 012 2v5a2 2 0 01-2 2H5a2 2 0 01-2-2v-5a2 2 0 012-2zm8-2v2H7V7a3 3 0 016 0z" clip-rule="evenodd")
+            
+            h3(class="text-2xl font-bold mb-2") Unlock Private Content
+            p(class="text-neutral-400 mb-6")
+              | Get access to #{privateCount} exclusive image#{privateCount !== 1 ? 's' : ''} from #{profileUser.username}
+            
+            div(class="mb-6")
+              span(class="text-4xl font-bold") $#{(profileUser.privatePrice / 100).toFixed(2)}
+              span(class="text-neutral-400 ml-2") one-time payment
+            
+            button#unlock-btn(class="w-full max-w-xs mx-auto py-3 bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-400 hover:to-orange-400 rounded-xl font-semibold transition" data-user-id=profileUser.id)
+              | Unlock Now
+            
+            //- Test mode notice
+            div(class="mt-6 p-4 bg-yellow-500/10 border border-yellow-500/20 rounded-xl max-w-sm mx-auto")
+              p(class="text-yellow-400 text-xs font-medium mb-3") Payment Test Mode
+              div(class="space-y-2 text-left")
+                div(class="flex items-center justify-between gap-2")
+                  span(class="text-neutral-400 text-xs") Card
+                  div(class="flex items-center gap-2")
+                    code(class="text-xs bg-neutral-800 px-2 py-1 rounded") 4242 4242 4242 4242
+                    button(class="copy-btn p-1 hover:bg-neutral-700 rounded transition" data-copy="4242424242424242" title="Copy")
+                      svg(class="w-3.5 h-3.5 text-neutral-400" fill="none" stroke="currentColor" viewBox="0 0 24 24")
+                        path(stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z")
+                div(class="flex items-center justify-between gap-2")
+                  span(class="text-neutral-400 text-xs") Expiry
+                  div(class="flex items-center gap-2")
+                    code(class="text-xs bg-neutral-800 px-2 py-1 rounded") 04/42
+                    button(class="copy-btn p-1 hover:bg-neutral-700 rounded transition" data-copy="0442" title="Copy")
+                      svg(class="w-3.5 h-3.5 text-neutral-400" fill="none" stroke="currentColor" viewBox="0 0 24 24")
+                        path(stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z")
+                div(class="flex items-center justify-between gap-2")
+                  span(class="text-neutral-400 text-xs") CVC
+                  div(class="flex items-center gap-2")
+                    code(class="text-xs bg-neutral-800 px-2 py-1 rounded") 424
+                    button(class="copy-btn p-1 hover:bg-neutral-700 rounded transition" data-copy="424" title="Copy")
+                      svg(class="w-3.5 h-3.5 text-neutral-400" fill="none" stroke="currentColor" viewBox="0 0 24 24")
+                        path(stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z")
+
+            //- Blurred preview
+            div(class="mt-8 grid grid-cols-3 gap-2 max-w-sm mx-auto")
+              - for (let i = 0; i < Math.min(6, privateCount); i++)
+                div(class="aspect-square rounded-lg bg-neutral-700/50 animate-pulse")
+
+  //- Lightbox
+  div#lightbox(class="fixed inset-0 z-50 bg-black/95 hidden items-center justify-center cursor-zoom-out")
+    img#lightbox-img(class="max-w-full max-h-full object-contain")
+    button#lightbox-close(class="absolute top-4 right-4 text-white/60 hover:text-white")
+      svg(class="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24")
+        path(stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12")
+
+  script.
+    // Lightbox
+    document.querySelectorAll('.image-card a[target="_blank"]').forEach(link => {
+      link.addEventListener('click', (e) => {
+        e.preventDefault();
+        const lightbox = document.getElementById('lightbox');
+        const img = document.getElementById('lightbox-img');
+        img.src = link.href;
+        lightbox.classList.remove('hidden');
+        lightbox.classList.add('flex');
+      });
+    });
+
+    document.getElementById('lightbox').addEventListener('click', () => {
+      const lightbox = document.getElementById('lightbox');
+      lightbox.classList.add('hidden');
+      lightbox.classList.remove('flex');
+    });
+
+    document.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape') {
+        const lightbox = document.getElementById('lightbox');
+        lightbox.classList.add('hidden');
+        lightbox.classList.remove('flex');
+      }
+    });
+
+    // Unlock button
+    const unlockBtn = document.getElementById('unlock-btn');
+    if (unlockBtn) {
+      unlockBtn.addEventListener('click', async () => {
+        unlockBtn.disabled = true;
+        unlockBtn.textContent = 'Loading...';
+        
+        const userId = unlockBtn.dataset.userId;
+        const res = await fetch(`/api/pay/${userId}`, { method: 'POST' });
+        const data = await res.json();
+        
+        if (data.url) {
+          window.location.href = data.url;
+        } else {
+          alert(data.error || 'Payment failed');
+          unlockBtn.disabled = false;
+          unlockBtn.textContent = 'Unlock Now';
+        }
+      });
+    }
+
+    // Copy buttons
+    document.querySelectorAll('.copy-btn').forEach(btn => {
+      btn.addEventListener('click', async () => {
+        const text = btn.dataset.copy;
+        await navigator.clipboard.writeText(text);
+        const svg = btn.querySelector('svg');
+        svg.classList.remove('text-neutral-400');
+        svg.classList.add('text-green-400');
+        setTimeout(() => {
+          svg.classList.remove('text-green-400');
+          svg.classList.add('text-neutral-400');
+        }, 1000);
+      });
+    });

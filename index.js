@@ -2,15 +2,21 @@ require('dotenv').config();
 const express = require('express');
 const session = require('express-session');
 const path = require('path');
+const fs = require('fs');
 const { PrismaClient } = require('@prisma/client');
-const { Client, GatewayIntentBits, Partials } = require('discord.js');
+const { Client, GatewayIntentBits, Partials, OAuth2Scopes, PermissionFlagsBits } = require('discord.js');
+const Stripe = require('stripe');
 
 const prisma = new PrismaClient();
 const app = express();
+const stripe = new Stripe(process.env.STRIPE_SECRET_KEY);
 
 app.set('trust proxy', true);
 app.set('view engine', 'pug');
 app.set('views', path.join(__dirname, 'views'));
+
+// Stripe webhook needs raw body
+app.use('/webhook/stripe', express.raw({ type: 'application/json' }));
 
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
@@ -27,9 +33,12 @@ app.use(session({
     }
 }));
 
-// Make user available to all templates
+// Make user, viewer, and stripe key available to all templates
 app.use((req, res, next) => {
     res.locals.user = req.session.user || null;
+    res.locals.viewer = req.session.viewer || null;
+    res.locals.stripePublishableKey = process.env.STRIPE_PUBLISHABLE_KEY;
+    res.locals.botInviteLink = process.env.DISCORD_BOT_INVITE || null;
     next();
 });
 
@@ -266,7 +275,7 @@ app.get('/auth/discord/callback', async (req, res) => {
             avatar: user.avatar
         };
         
-        res.redirect('/');
+        res.redirect('/my');
     } catch (err) {
         console.error('OAuth error:', err);
         res.redirect('/?error=oauth_failed');
@@ -278,57 +287,425 @@ app.get('/auth/logout', (req, res) => {
     res.redirect('/');
 });
 
-// Home page - shows image feed
+// Home page - shows all users
 app.get('/', async (req, res) => {
+    const users = await prisma.user.findMany({
+        orderBy: { createdAt: 'desc' },
+        include: {
+            _count: {
+                select: { 
+                    images: { where: { isPrivate: false } }
+                }
+            }
+        }
+    });
+    
+    res.render('index', {
+        title: 'Discord File',
+        users
+    });
+});
+
+// My images page (private dashboard)
+app.get('/my', async (req, res) => {
+    if (!req.session.user) {
+        return res.redirect('/auth/discord');
+    }
+    
     const page = parseInt(req.query.page) || 1;
     const limit = 20;
     const skip = (page - 1) * limit;
     
-    let images = [];
-    let totalImages = 0;
-    
-    if (req.session.user) {
-        [images, totalImages] = await Promise.all([
-            prisma.image.findMany({
-                where: { userId: req.session.user.id },
-                orderBy: { createdAt: 'desc' },
-                skip,
-                take: limit,
-                include: { user: true }
-            }),
-            prisma.image.count({ where: { userId: req.session.user.id } })
-        ]);
-    }
+    const [images, totalImages, userData] = await Promise.all([
+        prisma.image.findMany({
+            where: { userId: req.session.user.id },
+            orderBy: { createdAt: 'desc' },
+            skip,
+            take: limit
+        }),
+        prisma.image.count({ where: { userId: req.session.user.id } }),
+        prisma.user.findUnique({ where: { id: req.session.user.id } })
+    ]);
     
     const totalPages = Math.ceil(totalImages / limit);
     
-    res.render('index', {
-        title: 'Discord File',
+    res.render('my', {
+        title: 'My Images',
         images,
         page,
         totalPages,
-        totalImages
+        totalImages,
+        userData
     });
 });
 
-// API endpoint to get images (for infinite scroll)
-app.get('/api/images', async (req, res) => {
+// User profile page (public)
+app.get('/u/:username', async (req, res) => {
+    const profileUser = await prisma.user.findFirst({
+        where: { username: req.params.username },
+        include: {
+            _count: {
+                select: { 
+                    images: { where: { isPrivate: false } },
+                }
+            }
+        }
+    });
+    
+    if (!profileUser) {
+        return res.status(404).render('error', {
+            title: 'User Not Found',
+            status: 404,
+            message: 'This user does not exist.'
+        });
+    }
+    
+    // Get public images
+    const publicImages = await prisma.image.findMany({
+        where: { userId: profileUser.id, isPrivate: false },
+        orderBy: { createdAt: 'desc' },
+        take: 50
+    });
+    
+    // Count private images
+    const privateCount = await prisma.image.count({
+        where: { userId: profileUser.id, isPrivate: true }
+    });
+    
+    // Check if current user has paid for access
+    let hasAccess = false;
+    let isOwner = false;
+    
+    // Check for creator (Discord user) access
+    if (req.session.user) {
+        isOwner = req.session.user.id === profileUser.id;
+    }
+    
+    // Check for viewer (email user) or creator access to private content
+    if (!isOwner && privateCount > 0) {
+        if (req.session.viewer) {
+            // Check by viewer email
+            const payment = await prisma.payment.findFirst({
+                where: {
+                    email: req.session.viewer.email,
+                    toUserId: profileUser.id,
+                    status: 'completed'
+                }
+            });
+            hasAccess = !!payment;
+        } else if (req.session.user && req.session.user.email) {
+            // Check by creator's email (if they also paid)
+            const payment = await prisma.payment.findFirst({
+                where: {
+                    email: req.session.user.email,
+                    toUserId: profileUser.id,
+                    status: 'completed'
+                }
+            });
+            hasAccess = !!payment;
+        }
+    }
+    
+    // Get private images if has access or is owner
+    let privateImages = [];
+    if (isOwner || hasAccess) {
+        privateImages = await prisma.image.findMany({
+            where: { userId: profileUser.id, isPrivate: true },
+            orderBy: { createdAt: 'desc' },
+            take: 50
+        });
+    }
+    
+    res.render('profile', {
+        title: `${profileUser.username}'s Profile`,
+        profileUser,
+        publicImages,
+        privateImages,
+        privateCount,
+        hasAccess,
+        isOwner
+    });
+});
+
+// Toggle image privacy
+app.post('/api/images/:id/toggle-private', async (req, res) => {
     if (!req.session.user) {
         return res.status(401).json({ error: 'Not authenticated' });
     }
     
-    const page = parseInt(req.query.page) || 1;
-    const limit = 20;
-    const skip = (page - 1) * limit;
-    
-    const images = await prisma.image.findMany({
-        where: { userId: req.session.user.id },
-        orderBy: { createdAt: 'desc' },
-        skip,
-        take: limit
+    const image = await prisma.image.findUnique({
+        where: { id: req.params.id }
     });
     
-    res.json({ images, page });
+    if (!image || image.userId !== req.session.user.id) {
+        return res.status(404).json({ error: 'Image not found' });
+    }
+    
+    const updated = await prisma.image.update({
+        where: { id: req.params.id },
+        data: { isPrivate: !image.isPrivate }
+    });
+    
+    res.json({ success: true, isPrivate: updated.isPrivate });
+});
+
+// Update profile settings
+app.post('/api/settings', async (req, res) => {
+    if (!req.session.user) {
+        return res.status(401).json({ error: 'Not authenticated' });
+    }
+    
+    const { bio, privatePrice } = req.body;
+    
+    const updated = await prisma.user.update({
+        where: { id: req.session.user.id },
+        data: {
+            bio: bio || null,
+            privatePrice: Math.max(100, Math.min(10000, parseInt(privatePrice) || 500)) // $1-$100
+        }
+    });
+    
+    res.json({ success: true, user: updated });
+});
+
+// Create Stripe checkout session (no login required)
+app.post('/api/pay/:userId', async (req, res) => {
+    const targetUser = await prisma.user.findUnique({
+        where: { id: req.params.userId }
+    });
+    
+    if (!targetUser) {
+        return res.status(404).json({ error: 'User not found' });
+    }
+    
+    // If logged in as creator, can't pay yourself
+    if (req.session.user && targetUser.id === req.session.user.id) {
+        return res.status(400).json({ error: 'Cannot pay yourself' });
+    }
+    
+    try {
+        const session = await stripe.checkout.sessions.create({
+            payment_method_types: ['card'],
+            line_items: [{
+                price_data: {
+                    currency: 'usd',
+                    product_data: {
+                        name: `Private Access - ${targetUser.username}`,
+                        description: `Unlock private images from ${targetUser.username}`
+                    },
+                    unit_amount: targetUser.privatePrice
+                },
+                quantity: 1
+            }],
+            mode: 'payment',
+            customer_email: req.session.viewer?.email || undefined,
+            success_url: `https://${req.hostname}/payment/success?session_id={CHECKOUT_SESSION_ID}`,
+            cancel_url: `https://${req.hostname}/u/${targetUser.username}?paid=cancelled`,
+            metadata: {
+                toUserId: targetUser.id,
+                toUsername: targetUser.username
+            }
+        });
+        
+        res.json({ url: session.url });
+    } catch (err) {
+        console.error('Stripe error:', err);
+        res.status(500).json({ error: 'Payment failed' });
+    }
+});
+
+// Stripe webhook
+app.post('/webhook/stripe', async (req, res) => {
+    let event;
+    
+    try {
+        event = JSON.parse(req.body.toString());
+    } catch (err) {
+        console.error('Webhook error:', err);
+        return res.status(400).send(`Webhook Error: ${err.message}`);
+    }
+    
+    if (event.type === 'checkout.session.completed') {
+        const session = event.data.object;
+        const email = session.customer_details?.email || session.customer_email;
+        const toUserId = session.metadata?.toUserId;
+        
+        if (email && toUserId) {
+            // Create or get viewer
+            const viewer = await prisma.viewer.upsert({
+                where: { email },
+                update: {},
+                create: { email }
+            });
+            
+            // Create payment record
+            await prisma.payment.create({
+                data: {
+                    stripePaymentId: session.payment_intent || session.id,
+                    stripeSessionId: session.id,
+                    email,
+                    amount: session.amount_total,
+                    status: 'completed',
+                    viewerId: viewer.id,
+                    toUserId
+                }
+            });
+            
+            console.log(`Payment completed: ${email} unlocked ${toUserId}`);
+        }
+    }
+    
+    res.json({ received: true });
+});
+
+// Payment success - show success page and prompt login
+app.get('/payment/success', async (req, res) => {
+    const { session_id } = req.query;
+    
+    if (!session_id) {
+        return res.redirect('/?error=no_session');
+    }
+    
+    try {
+        const session = await stripe.checkout.sessions.retrieve(session_id);
+        const email = session.customer_details?.email || session.customer_email;
+        const toUsername = session.metadata?.toUsername;
+        
+        if (!email) {
+            return res.redirect('/?error=no_email');
+        }
+        
+        // Render success page with login prompt
+        res.render('payment-success', {
+            title: 'Payment Successful',
+            email,
+            toUsername
+        });
+    } catch (err) {
+        console.error('Payment success error:', err);
+        res.redirect('/?error=payment_retrieval_failed');
+    }
+});
+
+// Email login - request magic link
+app.get('/auth/email', (req, res) => {
+    res.render('email-login', {
+        title: 'Login with Email',
+        error: req.query.error,
+        success: req.query.success,
+        prefill: req.query.prefill || ''
+    });
+});
+
+app.post('/auth/email', async (req, res) => {
+    const { email } = req.body;
+    
+    if (!email || !email.includes('@')) {
+        return res.redirect('/auth/email?error=invalid_email');
+    }
+    
+    // Check if this email has any payments (is a viewer)
+    const viewer = await prisma.viewer.findUnique({
+        where: { email: email.toLowerCase() }
+    });
+    
+    if (!viewer) {
+        return res.redirect('/auth/email?error=no_account');
+    }
+    
+    // Generate a login token
+    const crypto = require('crypto');
+    const token = crypto.randomBytes(32).toString('hex');
+    const expiresAt = new Date(Date.now() + 15 * 60 * 1000); // 15 minutes
+    
+    await prisma.loginToken.create({
+        data: {
+            email: email.toLowerCase(),
+            token,
+            expiresAt
+        }
+    });
+    
+    // For now, just show the link (in production, send via email)
+    const loginUrl = `https://${req.hostname}/auth/email/verify?token=${token}`;
+    
+    // In development, redirect to show the link
+    // In production, you'd send an email and show a "check your email" message
+    if (process.env.PRODUCTION !== 'true') {
+        return res.render('email-login', {
+            title: 'Login with Email',
+            success: true,
+            loginUrl // Show link in dev mode
+        });
+    }
+    
+    // TODO: Send email with loginUrl
+    res.redirect('/auth/email?success=check_email');
+});
+
+// Verify email login token
+app.get('/auth/email/verify', async (req, res) => {
+    const { token } = req.query;
+    
+    if (!token) {
+        return res.redirect('/auth/email?error=invalid_token');
+    }
+    
+    const loginToken = await prisma.loginToken.findUnique({
+        where: { token }
+    });
+    
+    if (!loginToken || loginToken.used || loginToken.expiresAt < new Date()) {
+        return res.redirect('/auth/email?error=expired_token');
+    }
+    
+    // Mark token as used
+    await prisma.loginToken.update({
+        where: { token },
+        data: { used: true }
+    });
+    
+    // Find viewer
+    const viewer = await prisma.viewer.findUnique({
+        where: { email: loginToken.email }
+    });
+    
+    if (!viewer) {
+        return res.redirect('/auth/email?error=no_account');
+    }
+    
+    // Log in
+    req.session.viewer = {
+        id: viewer.id,
+        email: viewer.email
+    };
+    
+    res.redirect('/?logged_in=true');
+});
+
+// Viewer logout
+app.get('/auth/email/logout', (req, res) => {
+    delete req.session.viewer;
+    res.redirect('/');
+});
+
+// Delete image
+app.delete('/api/images/:id', async (req, res) => {
+    if (!req.session.user) {
+        return res.status(401).json({ error: 'Not authenticated' });
+    }
+    
+    const image = await prisma.image.findUnique({
+        where: { id: req.params.id }
+    });
+    
+    if (!image || image.userId !== req.session.user.id) {
+        return res.status(404).json({ error: 'Image not found' });
+    }
+    
+    await prisma.image.delete({ where: { id: req.params.id } });
+    
+    res.json({ success: true });
 });
 
 // 404 handler
@@ -363,6 +740,29 @@ const bot = new Client({
 
 bot.once('ready', () => {
     console.log(`Discord bot logged in as ${bot.user.tag}`);
+    
+    // Generate and save bot invite link if not already set
+    if (!process.env.DISCORD_BOT_INVITE) {
+        const inviteLink = bot.generateInvite({
+            scopes: [OAuth2Scopes.Bot],
+            permissions: [
+                PermissionFlagsBits.ReadMessageHistory,
+                PermissionFlagsBits.SendMessages,
+                PermissionFlagsBits.AddReactions,
+                PermissionFlagsBits.ViewChannel
+            ]
+        });
+        
+        // Append to .env file
+        const envPath = path.join(__dirname, '.env');
+        if (fs.existsSync(envPath)) {
+            fs.appendFileSync(envPath, `\n# Auto-generated bot invite link\nDISCORD_BOT_INVITE=${inviteLink}\n`);
+            console.log(`Bot invite link saved to .env: ${inviteLink}`);
+        }
+        
+        // Set in current process
+        process.env.DISCORD_BOT_INVITE = inviteLink;
+    }
 });
 
 bot.on('messageCreate', async (message) => {
@@ -389,6 +789,17 @@ bot.on('messageCreate', async (message) => {
         return;
     }
     
+    // DM = private, or if message starts with "private"
+    const startsWithPrivate = message.content.toLowerCase().startsWith('private');
+    const isPrivate = !message.guildId || startsWithPrivate;
+    
+    // Get description from message content (strip "private" prefix if present)
+    let description = message.content.trim();
+    if (startsWithPrivate) {
+        description = description.slice(7).trim(); // Remove "private" prefix
+    }
+    description = description || null;
+    
     // Save each image
     const savedImages = [];
     for (const [, attachment] of imageAttachments) {
@@ -398,6 +809,7 @@ bot.on('messageCreate', async (message) => {
                     url: attachment.url,
                     proxyUrl: attachment.proxyURL,
                     filename: attachment.name,
+                    description,
                     contentType: attachment.contentType,
                     width: attachment.width,
                     height: attachment.height,
@@ -405,6 +817,7 @@ bot.on('messageCreate', async (message) => {
                     messageId: message.id,
                     channelId: message.channelId,
                     guildId: message.guildId || null,
+                    isPrivate,
                     userId: user.id
                 }
             });
@@ -416,7 +829,7 @@ bot.on('messageCreate', async (message) => {
     
     if (savedImages.length > 0) {
         // React to confirm image was saved
-        await message.react('✅').catch(() => {});
+        await message.react(isPrivate ? '🔒' : '✅').catch(() => {});
     }
 });
 
