@@ -108,7 +108,31 @@ STRIPE_WEBHOOK_SECRET=whsec_xxxxx
 
 ---
 
-## Step 6: Session Secret
+## Step 6: Email Setup (Resend)
+
+**Ask the user:**
+
+> For sending login emails, I need a Resend API key.
+>
+> **Option 1: On hoston.ai**
+> Go to Domains > DNS > Email to get your API key and configure email automatically.
+>
+> **Option 2: Manual setup**
+> 1. Go to https://resend.com and create an account
+> 2. Add and verify your domain at https://resend.com/domains
+> 3. Create an API key at https://resend.com/api-keys
+>
+> Please provide:
+> - **API Key** (starts with `re_`)
+> - **From Email** (e.g., `Discord File <noreply@yourdomain.com>`)
+
+**If user skips this step:**
+
+Email sending will be disabled. Login links will only be logged to the console for debugging.
+
+---
+
+## Step 7: Session Secret
 
 **Generate automatically or ask:**
 
@@ -120,7 +144,7 @@ STRIPE_WEBHOOK_SECRET=whsec_xxxxx
 
 ---
 
-## Step 7: Database Setup
+## Step 8: Database Setup
 
 **Ask the user:**
 
@@ -176,7 +200,7 @@ EXIT;
 
 ---
 
-## Step 8: Write Configuration
+## Step 9: Write Configuration
 
 Once all values are collected, update the `.env` file:
 
@@ -200,11 +224,15 @@ DATABASE_URL="file:./dev.db"
 STRIPE_PUBLISHABLE_KEY={collected_publishable_key}
 STRIPE_SECRET_KEY={collected_secret_key}
 STRIPE_WEBHOOK_SECRET={webhook_secret_from_step_5}
+
+# Email (optional - if not set, login links are logged to console)
+RESEND_API_KEY={resend_api_key}
+EMAIL_FROM=Discord File <noreply@{domain}>
 ```
 
 ---
 
-## Step 9: Install Dependencies & Initialize Database
+## Step 10: Install Dependencies & Initialize Database
 
 Run:
 ```bash
@@ -215,7 +243,7 @@ npx prisma db push
 
 ---
 
-## Step 9: Start the Application
+## Step 11: Start the Application
 
 **Using PM2 (recommended for production):**
 ```bash
@@ -235,7 +263,7 @@ npm start
 
 ---
 
-## Step 10: Verify Setup
+## Step 12: Verify Setup
 
 **Tell the user:**
 

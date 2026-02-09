@@ -6,10 +6,12 @@ const fs = require('fs');
 const { PrismaClient } = require('@prisma/client');
 const { Client, GatewayIntentBits, Partials, OAuth2Scopes, PermissionFlagsBits } = require('discord.js');
 const Stripe = require('stripe');
+const { Resend } = require('resend');
 
 const prisma = new PrismaClient();
 const app = express();
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY);
+const resend = process.env.RESEND_API_KEY ? new Resend(process.env.RESEND_API_KEY) : null;
 
 app.set('trust proxy', true);
 app.set('view engine', 'pug');
@@ -651,7 +653,26 @@ app.post('/auth/email', async (req, res) => {
     // Log it for debugging
     console.log(`Login link for ${email}: ${loginUrl}`);
     
-    // TODO: Send email with loginUrl
+    // Send email if Resend is configured
+    if (resend && process.env.EMAIL_FROM) {
+        try {
+            await resend.emails.send({
+                from: process.env.EMAIL_FROM,
+                to: email.toLowerCase(),
+                subject: 'Your login link',
+                html: `
+                    <h2>Login to Discord File</h2>
+                    <p>Click the link below to log in. This link expires in 15 minutes.</p>
+                    <p><a href="${loginUrl}" style="display: inline-block; padding: 12px 24px; background: #6366f1; color: white; text-decoration: none; border-radius: 8px;">Login Now</a></p>
+                    <p style="color: #666; font-size: 12px;">Or copy this link: ${loginUrl}</p>
+                `
+            });
+            console.log(`Login email sent to ${email}`);
+        } catch (err) {
+            console.error('Failed to send email:', err);
+        }
+    }
+    
     res.redirect('/auth/email?success=check_email');
 });
 
