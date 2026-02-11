@@ -43,7 +43,7 @@ block content
     if users && users.length > 0
       div(class="space-y-4")
         each u in users
-          div(class="bg-neutral-900 rounded-xl p-4 flex items-center gap-4")
+          a(href=`/u/${u.username}` class="user-card block bg-neutral-900 hover:bg-neutral-800 rounded-xl p-4 flex items-center gap-4 transition cursor-pointer")
             //- Avatar
             div(class="flex-shrink-0")
               if u.avatar
@@ -58,16 +58,16 @@ block content
               p(class="text-sm text-neutral-400")
                 | #{u.publicCount} public, #{u.privateCount} private
             
-            //- Actions
-            div(class="flex items-center gap-2 flex-shrink-0")
-              a(href=`/u/${u.username}` class="px-4 py-2 bg-neutral-800 hover:bg-neutral-700 rounded-lg text-sm font-medium transition")
-                | View Public
+            //- Actions (pointer-events to make buttons clickable independently)
+            div(class="flex items-center gap-2 flex-shrink-0 pointer-events-auto")
+              span(class="px-4 py-2 bg-neutral-800 hover:bg-neutral-700 rounded-lg text-sm font-medium transition pointer-events-none")
+                | View
               if u.privateCount > 0
                 if u.hasUnlocked
-                  a(href=`/u/${u.username}` class="px-4 py-2 bg-gradient-to-r from-emerald-500 to-green-500 hover:from-emerald-400 hover:to-green-400 rounded-lg text-sm font-medium transition")
-                    | View Premium
+                  span(class="px-4 py-2 bg-gradient-to-r from-emerald-500 to-green-500 rounded-lg text-sm font-medium pointer-events-none")
+                    | Premium
                 else
-                  button(class="pay-btn px-4 py-2 bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-400 hover:to-orange-400 rounded-lg text-sm font-medium transition" data-user-id=u.id data-price=u.privatePrice)
+                  button(class="pay-btn px-4 py-2 bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-400 hover:to-orange-400 rounded-lg text-sm font-medium transition pointer-events-auto" data-user-id=u.id data-price=u.privatePrice)
                     | Unlock $#{(u.privatePrice / 100).toFixed(2)}
     else
       //- Empty state
@@ -88,7 +88,10 @@ block content
 
   script.
     document.querySelectorAll('.pay-btn').forEach(btn => {
-      btn.addEventListener('click', async () => {
+      btn.addEventListener('click', async (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        
         btn.disabled = true;
         btn.textContent = 'Loading...';
         

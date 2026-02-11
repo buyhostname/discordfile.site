@@ -25,8 +25,8 @@ block content
     //- Page header
     div(class="flex items-center justify-between mb-8")
       div
-        h1(class="text-3xl font-bold") My Images
-        p(class="text-neutral-400 mt-1") Manage your uploaded images
+        h1(class="text-3xl font-bold") My Files
+        p(class="text-neutral-400 mt-1") Manage your uploaded files
       
       //- Settings button
       button#settings-btn(class="px-4 py-2 bg-neutral-800 hover:bg-neutral-700 rounded-lg text-sm transition")
@@ -36,7 +36,7 @@ block content
     div(class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8")
       div(class="bg-neutral-900 rounded-xl p-4")
         p(class="text-2xl font-bold") #{totalImages}
-        p(class="text-sm text-neutral-400") Total Images
+        p(class="text-sm text-neutral-400") Total Files
       div(class="bg-neutral-900 rounded-xl p-4")
         p(class="text-2xl font-bold") #{images.filter(i => !i.isPrivate).length}
         p(class="text-sm text-neutral-400") Public
@@ -51,39 +51,80 @@ block content
       //- Instructions
       div(class="bg-neutral-900/50 border border-neutral-800 rounded-xl p-4 mb-6")
         p(class="text-sm text-neutral-400")
-          | Click the lock icon to toggle privacy. Send images to the bot with the word "private" to auto-mark them as private.
+          | Click the lock icon to toggle privacy. Send files to the bot with "private" in the message, via DM, or as a spoiler to auto-mark them as private.
 
-      //- Image grid
+      //- File grid
       div(class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4")
         each image in images
-          div(class="image-card group relative" data-id=image.id)
-            div(class="relative rounded-xl overflow-hidden bg-neutral-900 aspect-square")
-              img(
-                src=image.url
-                alt=image.filename
-                class="w-full h-full object-cover"
-                loading="lazy"
-              )
+          - var mediaUrl = '/file/' + image.id
+          - var isVideo = image.contentType && image.contentType.startsWith('video/')
+          - var isImage = image.contentType && image.contentType.startsWith('image/')
+          - var isAudio = image.contentType && image.contentType.startsWith('audio/')
+          - var isPdf = image.contentType === 'application/pdf'
+          - var fileExt = image.filename ? image.filename.split('.').pop().toUpperCase() : 'FILE'
+          div(class="image-card group relative" data-id=image.id data-url=mediaUrl data-is-media=(isImage || isVideo) data-filename=image.filename)
+            div(class="relative rounded-xl overflow-hidden bg-neutral-900 aspect-square cursor-pointer media-click")
+              if isVideo
+                video(
+                  src=mediaUrl
+                  class="w-full h-full object-cover pointer-events-none"
+                  muted
+                  loop
+                  playsinline
+                )
+              else if isImage
+                img(
+                  src=mediaUrl
+                  alt=image.filename
+                  class="w-full h-full object-cover pointer-events-none"
+                  loading="lazy"
+                )
+              else
+                //- Other file types - show icon and filename
+                div(class="w-full h-full flex flex-col items-center justify-center p-4 text-center pointer-events-none")
+                  if isAudio
+                    svg(class="w-12 h-12 text-purple-400 mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24")
+                      path(stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9 19V6l12-3v13M9 19c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2zm12-3c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2zM9 10l12-3")
+                  else if isPdf
+                    svg(class="w-12 h-12 text-red-400 mb-2" fill="currentColor" viewBox="0 0 24 24")
+                      path(d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8l-6-6zm-1 2l5 5h-5V4zm-2.5 9.5a1.5 1.5 0 110 3 1.5 1.5 0 010-3zm-3 0c.828 0 1.5.56 1.5 1.25v2.5c0 .69-.672 1.25-1.5 1.25s-1.5-.56-1.5-1.25v-2.5c0-.69.672-1.25 1.5-1.25zm8.5 0h-2v4.5h1v-1.5h1a1.5 1.5 0 000-3z")
+                  else
+                    svg(class="w-12 h-12 text-neutral-400 mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24")
+                      path(stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z")
+                  span(class="text-xs text-neutral-400 truncate w-full") #{image.filename}
+                  if image.size
+                    span(class="text-xs text-neutral-500") #{(image.size / 1024 / 1024).toFixed(2)} MB
+              //- Type badge
+              if isVideo
+                div(class="absolute top-2 right-2 px-2 py-1 bg-black/70 rounded-full text-xs font-medium flex items-center gap-1 pointer-events-none")
+                  svg(class="w-3 h-3" fill="currentColor" viewBox="0 0 20 20")
+                    path(fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM9.555 7.168A1 1 0 008 8v4a1 1 0 001.555.832l3-2a1 1 0 000-1.664l-3-2z" clip-rule="evenodd")
+                  | Video
+              else if isAudio
+                div(class="absolute top-2 right-2 px-2 py-1 bg-purple-500/70 rounded-full text-xs font-medium flex items-center gap-1 pointer-events-none")
+                  svg(class="w-3 h-3" fill="currentColor" viewBox="0 0 20 20")
+                    path(fill-rule="evenodd" d="M9.383 3.076A1 1 0 0110 4v12a1 1 0 01-1.707.707L4.586 13H2a1 1 0 01-1-1V8a1 1 0 011-1h2.586l3.707-3.707a1 1 0 011.09-.217z" clip-rule="evenodd")
+                  | Audio
+              else if !isImage
+                div(class="absolute top-2 right-2 px-2 py-1 bg-neutral-700/70 rounded-full text-xs font-medium pointer-events-none")
+                  | File
               //- Privacy badge
               if image.isPrivate
-                div(class="absolute top-2 left-2 px-2 py-1 bg-amber-500/90 rounded-full text-xs font-medium flex items-center gap-1")
+                div(class="absolute top-2 left-2 px-2 py-1 bg-amber-500/90 rounded-full text-xs font-medium flex items-center gap-1 pointer-events-none")
                   svg(class="w-3 h-3" fill="currentColor" viewBox="0 0 20 20")
                     path(fill-rule="evenodd" d="M5 9V7a5 5 0 0110 0v2a2 2 0 012 2v5a2 2 0 01-2 2H5a2 2 0 01-2-2v-5a2 2 0 012-2zm8-2v2H7V7a3 3 0 016 0z" clip-rule="evenodd")
                   | Private
               
               //- Action overlay
-              div(class="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2")
-                button(class="toggle-privacy p-2 bg-white/20 hover:bg-white/30 rounded-full transition" title="Toggle Privacy")
+              div(class="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2 pointer-events-none")
+                button(class="toggle-privacy p-2 bg-white/20 hover:bg-white/30 rounded-full transition pointer-events-auto" title="Toggle Privacy")
                   if image.isPrivate
                     svg(class="w-5 h-5" fill="currentColor" viewBox="0 0 20 20")
                       path(fill-rule="evenodd" d="M5 9V7a5 5 0 0110 0v2a2 2 0 012 2v5a2 2 0 01-2 2H5a2 2 0 01-2-2v-5a2 2 0 012-2zm8-2v2H7V7a3 3 0 016 0z" clip-rule="evenodd")
                   else
                     svg(class="w-5 h-5" fill="currentColor" viewBox="0 0 20 20")
                       path(d="M10 2a5 5 0 00-5 5v2a2 2 0 00-2 2v5a2 2 0 002 2h10a2 2 0 002-2v-5a2 2 0 00-2-2H7V7a3 3 0 015.905-.75 1 1 0 001.937-.5A5.002 5.002 0 0010 2z")
-                a(href=image.url target="_blank" class="p-2 bg-white/20 hover:bg-white/30 rounded-full transition" title="View Full")
-                  svg(class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24")
-                    path(stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14")
-                button(class="delete-image p-2 bg-red-500/50 hover:bg-red-500/70 rounded-full transition" title="Delete")
+                button(class="delete-image p-2 bg-red-500/50 hover:bg-red-500/70 rounded-full transition pointer-events-auto" title="Delete")
                   svg(class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24")
                     path(stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16")
 
@@ -180,7 +221,8 @@ block content
 
     // Toggle privacy
     document.querySelectorAll('.toggle-privacy').forEach(btn => {
-      btn.addEventListener('click', async () => {
+      btn.addEventListener('click', async (e) => {
+        e.stopPropagation();
         const card = btn.closest('.image-card');
         const id = card.dataset.id;
         
@@ -193,7 +235,8 @@ block content
 
     // Delete image
     document.querySelectorAll('.delete-image').forEach(btn => {
-      btn.addEventListener('click', async () => {
+      btn.addEventListener('click', async (e) => {
+        e.stopPropagation();
         if (!confirm('Delete this image?')) return;
         
         const card = btn.closest('.image-card');
@@ -204,4 +247,34 @@ block content
           card.remove();
         }
       });
+    });
+
+    // Click on media to open/download
+    document.querySelectorAll('.media-click').forEach(el => {
+      el.addEventListener('click', (e) => {
+        // Don't trigger if clicking on buttons
+        if (e.target.closest('button')) return;
+        
+        const card = el.closest('.image-card');
+        const url = card.dataset.url;
+        const isMedia = card.dataset.isMedia === 'true';
+        const filename = card.dataset.filename;
+        
+        if (isMedia) {
+          window.open(url, '_blank');
+        } else {
+          // Trigger download for non-media files
+          const a = document.createElement('a');
+          a.href = url;
+          a.download = filename;
+          a.click();
+        }
+      });
+    });
+
+    // Video hover play
+    document.querySelectorAll('.image-card video').forEach(video => {
+      const card = video.closest('.image-card');
+      card.addEventListener('mouseenter', () => video.play());
+      card.addEventListener('mouseleave', () => { video.pause(); video.currentTime = 0; });
     });

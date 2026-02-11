@@ -1,10 +1,13 @@
 require('dotenv').config();
 const express = require('express');
 const session = require('express-session');
+const SqliteStore = require('better-sqlite3-session-store')(session);
+const Database = require('better-sqlite3');
 const path = require('path');
 const fs = require('fs');
 const crypto = require('crypto');
 const jwt = require('jsonwebtoken');
+const sharp = require('sharp');
 const { PrismaClient } = require('@prisma/client');
 const { Client, GatewayIntentBits, Partials, OAuth2Scopes, PermissionFlagsBits } = require('discord.js');
 const Stripe = require('stripe');
@@ -15,8 +18,72 @@ const app = express();
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY);
 const resend = process.env.RESEND_API_KEY ? new Resend(process.env.RESEND_API_KEY) : null;
 
+// Session database
+const sessionsDb = new Database(path.join(__dirname, 'sessions.db'));
+
 // JWT secret for magic links (use SESSION_SECRET as fallback)
 const JWT_SECRET = process.env.SESSION_SECRET || 'change-me';
+
+const PORT = process.env.PORT || 3000;
+
+// Uploads directory
+const UPLOADS_DIR = path.join(__dirname, 'uploads');
+if (!fs.existsSync(UPLOADS_DIR)) {
+    fs.mkdirSync(UPLOADS_DIR, { recursive: true });
+}
+
+// Helper function to download file from URL
+async function downloadFile(url, filepath) {
+    const response = await fetch(url);
+    if (!response.ok) {
+        throw new Error(`Failed to download: ${response.status}`);
+    }
+    const buffer = Buffer.from(await response.arrayBuffer());
+    fs.writeFileSync(filepath, buffer);
+    return filepath;
+}
+
+// Helper function to convert video to MP4 using ffmpeg
+const { exec } = require('child_process');
+const util = require('util');
+const execPromise = util.promisify(exec);
+
+async function convertToMp4(inputPath, outputPath) {
+    // -y: overwrite output, -i: input, -c:v libx264: H.264 codec, -c:a aac: AAC audio
+    // -movflags +faststart: optimize for web streaming
+    const cmd = `ffmpeg -y -i "${inputPath}" -c:v libx264 -c:a aac -movflags +faststart "${outputPath}"`;
+    await execPromise(cmd);
+    return outputPath;
+}
+
+// Video formats that need conversion to MP4
+const VIDEO_FORMATS_TO_CONVERT = ['.mov', '.avi', '.mkv', '.wmv', '.flv', '.webm', '.m4v', '.3gp', '.mpeg', '.mpg'];
+
+// Image formats that can have EXIF stripped
+const IMAGE_FORMATS_WITH_EXIF = ['.jpg', '.jpeg', '.png', '.webp', '.tiff', '.tif'];
+
+// Strip EXIF/metadata from images (removes GPS, camera info, timestamps, etc.)
+async function stripExifData(inputPath, outputPath) {
+    const ext = path.extname(inputPath).toLowerCase();
+    
+    // Only process supported image formats
+    if (!IMAGE_FORMATS_WITH_EXIF.includes(ext)) {
+        return false;
+    }
+    
+    try {
+        // Read image and strip all metadata, then save
+        await sharp(inputPath)
+            .rotate() // Auto-rotate based on EXIF orientation before stripping
+            .withMetadata({ orientation: undefined }) // Remove all metadata
+            .toFile(outputPath);
+        
+        return true;
+    } catch (err) {
+        console.error(`[EXIF] Failed to strip metadata: ${err.message}`);
+        return false;
+    }
+}
 
 app.set('trust proxy', true);
 app.set('view engine', 'pug');
@@ -29,8 +96,15 @@ app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 app.use(express.static(path.join(__dirname, 'public')));
 
-// Session middleware
+// Session middleware with persistent SQLite store
 app.use(session({
+    store: new SqliteStore({
+        client: sessionsDb,
+        expired: {
+            clear: true,
+            intervalMs: 900000 // Clear expired sessions every 15 min
+        }
+    }),
     secret: process.env.SESSION_SECRET || 'change-me',
     resave: false,
     saveUninitialized: false,
@@ -49,8 +123,6 @@ app.use((req, res, next) => {
     res.locals.botInviteLink = process.env.DISCORD_BOT_INVITE || null;
     next();
 });
-
-const PORT = process.env.PORT || 3000;
 
 // Discord OAuth config
 const DISCORD_CLIENT_ID = process.env.DISCORD_CLIENT_ID;
@@ -309,6 +381,69 @@ app.get('/u/:username', async (req, res) => {
         hasAccess,
         isOwner
     });
+});
+
+// Secure file serving route
+app.get('/file/:id', async (req, res) => {
+    const image = await prisma.image.findUnique({
+        where: { id: req.params.id },
+        include: { user: true }
+    });
+    
+    if (!image) {
+        return res.status(404).send('File not found');
+    }
+    
+    // Check access for private files
+    if (image.isPrivate) {
+        let hasAccess = false;
+        
+        // Owner always has access
+        if (req.session.user && req.session.user.id === image.userId) {
+            hasAccess = true;
+        }
+        
+        // Check if viewer has paid
+        if (!hasAccess && req.session.viewer) {
+            const payment = await prisma.payment.findFirst({
+                where: {
+                    email: req.session.viewer.email,
+                    toUserId: image.userId,
+                    status: 'completed'
+                }
+            });
+            hasAccess = !!payment;
+        }
+        
+        // Check if logged-in creator has paid (using their email)
+        if (!hasAccess && req.session.user && req.session.user.email) {
+            const payment = await prisma.payment.findFirst({
+                where: {
+                    email: req.session.user.email,
+                    toUserId: image.userId,
+                    status: 'completed'
+                }
+            });
+            hasAccess = !!payment;
+        }
+        
+        if (!hasAccess) {
+            return res.status(403).send('Access denied');
+        }
+    }
+    
+    // Serve the file
+    if (image.localPath) {
+        const filePath = path.join(__dirname, image.localPath);
+        if (fs.existsSync(filePath)) {
+            res.setHeader('Content-Type', image.contentType || 'application/octet-stream');
+            res.setHeader('Content-Disposition', `inline; filename="${image.filename}"`);
+            return res.sendFile(filePath);
+        }
+    }
+    
+    // Fallback to Discord URL (may be expired)
+    res.redirect(image.url);
 });
 
 // Toggle image privacy
@@ -735,6 +870,14 @@ app.delete('/api/images/:id', async (req, res) => {
         return res.status(404).json({ error: 'Image not found' });
     }
     
+    // Delete local file if exists
+    if (image.localPath) {
+        const filePath = path.join(__dirname, image.localPath);
+        if (fs.existsSync(filePath)) {
+            fs.unlinkSync(filePath);
+        }
+    }
+    
     await prisma.image.delete({ where: { id: req.params.id } });
     
     res.json({ success: true });
@@ -804,12 +947,22 @@ bot.on('messageCreate', async (message) => {
     // Check if message has attachments
     if (message.attachments.size === 0) return;
     
-    // Filter for images
-    const imageAttachments = message.attachments.filter(att => 
-        att.contentType && att.contentType.startsWith('image/')
-    );
+    console.log(`[Bot] Message from ${message.author.username} with ${message.attachments.size} attachment(s)`);
     
-    if (imageAttachments.size === 0) return;
+    // Log all attachments for debugging
+    for (const [id, att] of message.attachments) {
+        console.log(`  - ${att.name}: ${att.contentType || 'NO CONTENT TYPE'} (${att.size} bytes)`);
+    }
+    
+    // Accept all file types (must have contentType)
+    const mediaAttachments = message.attachments.filter(att => att.contentType);
+    
+    if (mediaAttachments.size === 0) {
+        console.log(`[Bot] No attachments with contentType, skipping`);
+        return;
+    }
+    
+    console.log(`[Bot] Processing ${mediaAttachments.size} valid attachment(s)`);
     
     // Find user in database
     const user = await prisma.user.findUnique({
@@ -817,13 +970,13 @@ bot.on('messageCreate', async (message) => {
     });
     
     if (!user) {
-        // User not registered - optionally reply
+        console.log(`[Bot] User ${message.author.username} (${message.author.id}) not registered, skipping`);
         return;
     }
     
     // DM = private, or if message starts with "private"
     const startsWithPrivate = message.content.toLowerCase().startsWith('private');
-    const isPrivate = !message.guildId || startsWithPrivate;
+    const messagePrivate = !message.guildId || startsWithPrivate;
     
     // Get description from message content (strip "private" prefix if present)
     let description = message.content.trim();
@@ -832,17 +985,78 @@ bot.on('messageCreate', async (message) => {
     }
     description = description || null;
     
-    // Save each image
+    // Save each media file
     const savedImages = [];
-    for (const [, attachment] of imageAttachments) {
+    for (const [, attachment] of mediaAttachments) {
         try {
+            // Check if file is a spoiler (private)
+            const isSpoiler = attachment.spoiler || attachment.name.startsWith('SPOILER_');
+            const isPrivate = messagePrivate || isSpoiler;
+            
+            // Generate unique filename (strip SPOILER_ prefix if present)
+            let originalName = attachment.name;
+            if (originalName.startsWith('SPOILER_')) {
+                originalName = originalName.slice(8); // Remove "SPOILER_" prefix
+            }
+            const ext = path.extname(originalName).toLowerCase() || '.bin';
+            const uniqueId = crypto.randomBytes(16).toString('hex');
+            let localFilename = `${uniqueId}${ext}`;
+            let localPath = path.join(UPLOADS_DIR, localFilename);
+            let finalContentType = attachment.contentType;
+            let finalFilename = originalName;
+            
+            console.log(`[Bot] Downloading ${attachment.name} (${attachment.contentType})${isSpoiler ? ' [SPOILER]' : ''}...`);
+            
+            // Download the file from Discord
+            await downloadFile(attachment.url, localPath);
+            
+            console.log(`[Bot] Saved to ${localFilename}`);
+            
+            // Convert video formats to MP4 for browser compatibility
+            if (VIDEO_FORMATS_TO_CONVERT.includes(ext)) {
+                console.log(`[Bot] Converting ${ext} to MP4...`);
+                const mp4Filename = `${uniqueId}.mp4`;
+                const mp4Path = path.join(UPLOADS_DIR, mp4Filename);
+                
+                try {
+                    await convertToMp4(localPath, mp4Path);
+                    // Delete original file
+                    fs.unlinkSync(localPath);
+                    // Update to use MP4
+                    localFilename = mp4Filename;
+                    localPath = mp4Path;
+                    finalContentType = 'video/mp4';
+                    finalFilename = originalName.replace(/\.[^.]+$/, '.mp4');
+                    console.log(`[Bot] Converted to ${mp4Filename}`);
+                } catch (convErr) {
+                    console.error(`[Bot] Conversion failed, keeping original:`, convErr.message);
+                }
+            }
+            
+            // Strip EXIF/metadata from images (removes GPS, camera info, etc.)
+            if (IMAGE_FORMATS_WITH_EXIF.includes(ext)) {
+                console.log(`[Bot] Stripping EXIF metadata...`);
+                const cleanFilename = `${uniqueId}_clean${ext}`;
+                const cleanPath = path.join(UPLOADS_DIR, cleanFilename);
+                
+                const stripped = await stripExifData(localPath, cleanPath);
+                if (stripped) {
+                    // Delete original, use cleaned version
+                    fs.unlinkSync(localPath);
+                    // Rename clean file to original name
+                    fs.renameSync(cleanPath, localPath);
+                    console.log(`[Bot] EXIF metadata stripped`);
+                }
+            }
+            
             const image = await prisma.image.create({
                 data: {
                     url: attachment.url,
                     proxyUrl: attachment.proxyURL,
-                    filename: attachment.name,
+                    localPath: `uploads/${localFilename}`,
+                    filename: finalFilename,
                     description,
-                    contentType: attachment.contentType,
+                    contentType: finalContentType,
                     width: attachment.width,
                     height: attachment.height,
                     size: attachment.size,
@@ -854,14 +1068,20 @@ bot.on('messageCreate', async (message) => {
                 }
             });
             savedImages.push(image);
+            console.log(`[Bot] Created DB record for ${finalFilename} (${isPrivate ? 'private' : 'public'})`);
         } catch (err) {
-            console.error('Error saving image:', err);
+            console.error(`[Bot] Error saving ${attachment.name}:`, err.message);
         }
     }
     
+    const hasPrivate = savedImages.some(img => img.isPrivate);
+    const hasPublic = savedImages.some(img => !img.isPrivate);
+    console.log(`[Bot] Saved ${savedImages.length}/${mediaAttachments.size} files (${hasPrivate ? 'has private' : ''}${hasPrivate && hasPublic ? ', ' : ''}${hasPublic ? 'has public' : ''})`);
+    
     if (savedImages.length > 0) {
-        // React to confirm image was saved
-        await message.react(isPrivate ? '🔒' : '✅').catch(() => {});
+        // React to confirm file was saved
+        // Use lock if any private, checkmark if all public
+        await message.react(hasPrivate ? '🔒' : '✅').catch(() => {});
     }
 });
 

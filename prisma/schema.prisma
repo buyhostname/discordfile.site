@@ -34,8 +34,9 @@ model Viewer {
 
 model Image {
   id          String   @id @default(cuid())
-  url         String
+  url         String   // Original Discord CDN URL (may expire)
   proxyUrl    String?
+  localPath   String?  // Local file path (e.g., "uploads/abc123.png")
   filename    String
   description String?
   contentType String?

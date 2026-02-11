@@ -67,17 +67,57 @@ block content
         
         div(class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4")
           each image in publicImages
-            div(class="image-card group")
-              div(class="relative rounded-xl overflow-hidden bg-neutral-900 aspect-square")
-                img(src=image.url alt=image.filename class="w-full h-full object-cover" loading="lazy")
-                div(class="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity flex flex-col justify-end")
-                  if image.description
-                    div(class="p-3 text-sm")
-                      p(class="line-clamp-2") #{image.description}
-                  div(class="p-3 pt-0 flex justify-center")
-                    a(href=image.url target="_blank" class="p-2 bg-white/20 hover:bg-white/30 rounded-full transition")
-                      svg(class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24")
-                        path(stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0zM10 7v3m0 0v3m0-3h3m-3 0H7")
+            - var mediaUrl = '/file/' + image.id
+            - var isVideo = image.contentType && image.contentType.startsWith('video/')
+            - var isImage = image.contentType && image.contentType.startsWith('image/')
+            - var isAudio = image.contentType && image.contentType.startsWith('audio/')
+            if isImage || isVideo
+              a(href=mediaUrl target="_blank" class="image-card group block cursor-pointer")
+                div(class="relative rounded-xl overflow-hidden bg-neutral-900 aspect-square")
+                  if isVideo
+                    video(
+                      src=mediaUrl
+                      class="w-full h-full object-cover"
+                      muted
+                      loop
+                      playsinline
+                      onmouseenter="this.play()"
+                      onmouseleave="this.pause(); this.currentTime=0;"
+                    )
+                  else
+                    img(src=mediaUrl alt=image.filename class="w-full h-full object-cover" loading="lazy")
+                  //- Type badge
+                  if isVideo
+                    div(class="absolute top-2 right-2 px-2 py-1 bg-black/70 rounded-full text-xs font-medium flex items-center gap-1")
+                      svg(class="w-3 h-3" fill="currentColor" viewBox="0 0 20 20")
+                        path(fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM9.555 7.168A1 1 0 008 8v4a1 1 0 001.555.832l3-2a1 1 0 000-1.664l-3-2z" clip-rule="evenodd")
+                      | Video
+                  div(class="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity flex flex-col justify-end")
+                    if image.description
+                      div(class="p-3 text-sm")
+                        p(class="line-clamp-2") #{image.description}
+            else
+              a(href=mediaUrl download=image.filename class="image-card group block cursor-pointer")
+                div(class="relative rounded-xl overflow-hidden bg-neutral-900 aspect-square")
+                  div(class="w-full h-full flex flex-col items-center justify-center p-4 text-center")
+                    if isAudio
+                      svg(class="w-12 h-12 text-purple-400 mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24")
+                        path(stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9 19V6l12-3v13M9 19c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2zm12-3c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2zM9 10l12-3")
+                    else
+                      svg(class="w-12 h-12 text-neutral-400 mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24")
+                        path(stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z")
+                    span(class="text-xs text-neutral-400 truncate w-full") #{image.filename}
+                  //- Type badge
+                  if isAudio
+                    div(class="absolute top-2 right-2 px-2 py-1 bg-purple-500/70 rounded-full text-xs font-medium")
+                      | Audio
+                  else
+                    div(class="absolute top-2 right-2 px-2 py-1 bg-neutral-700/70 rounded-full text-xs font-medium")
+                      | File
+                  div(class="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center")
+                    div(class="p-3 bg-white/20 rounded-full")
+                      svg(class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24")
+                        path(stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4")
     else if !isOwner
       div(class="text-center py-10 text-neutral-500")
         | No public images yet
@@ -89,24 +129,60 @@ block content
           svg(class="w-5 h-5 text-amber-400" fill="currentColor" viewBox="0 0 20 20")
             path(fill-rule="evenodd" d="M5 9V7a5 5 0 0110 0v2a2 2 0 012 2v5a2 2 0 01-2 2H5a2 2 0 01-2-2v-5a2 2 0 012-2zm8-2v2H7V7a3 3 0 016 0z" clip-rule="evenodd")
           | Private Content
-          span(class="text-sm font-normal text-neutral-400") (#{privateCount} images)
+          span(class="text-sm font-normal text-neutral-400") (#{privateCount} files)
 
         if isOwner || hasAccess
-          //- Show private images
+          //- Show private files
           div(class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4")
             each image in privateImages
-              div(class="image-card group")
-                div(class="relative rounded-xl overflow-hidden bg-neutral-900 aspect-square")
-                  img(src=image.url alt=image.filename class="w-full h-full object-cover" loading="lazy")
-                  //- Private badge
-                  div(class="absolute top-2 left-2 px-2 py-1 bg-amber-500/90 rounded-full text-xs font-medium flex items-center gap-1")
-                    svg(class="w-3 h-3" fill="currentColor" viewBox="0 0 20 20")
-                      path(fill-rule="evenodd" d="M5 9V7a5 5 0 0110 0v2a2 2 0 012 2v5a2 2 0 01-2 2H5a2 2 0 01-2-2v-5a2 2 0 012-2zm8-2v2H7V7a3 3 0 016 0z" clip-rule="evenodd")
-                    | Private
-                  div(class="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center")
-                    a(href=image.url target="_blank" class="p-3 bg-white/20 hover:bg-white/30 rounded-full transition")
-                      svg(class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24")
-                        path(stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0zM10 7v3m0 0v3m0-3h3m-3 0H7")
+              - var mediaUrl = '/file/' + image.id
+              - var isVideo = image.contentType && image.contentType.startsWith('video/')
+              - var isImage = image.contentType && image.contentType.startsWith('image/')
+              - var isAudio = image.contentType && image.contentType.startsWith('audio/')
+              if isImage || isVideo
+                a(href=mediaUrl target="_blank" class="image-card group block cursor-pointer")
+                  div(class="relative rounded-xl overflow-hidden bg-neutral-900 aspect-square")
+                    if isVideo
+                      video(
+                        src=mediaUrl
+                        class="w-full h-full object-cover"
+                        muted
+                        loop
+                        playsinline
+                        onmouseenter="this.play()"
+                        onmouseleave="this.pause(); this.currentTime=0;"
+                      )
+                    else
+                      img(src=mediaUrl alt=image.filename class="w-full h-full object-cover" loading="lazy")
+                    //- Type badge
+                    if isVideo
+                      div(class="absolute top-2 right-2 px-2 py-1 bg-black/70 rounded-full text-xs font-medium flex items-center gap-1")
+                        svg(class="w-3 h-3" fill="currentColor" viewBox="0 0 20 20")
+                          path(fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM9.555 7.168A1 1 0 008 8v4a1 1 0 001.555.832l3-2a1 1 0 000-1.664l-3-2z" clip-rule="evenodd")
+                        | Video
+                    //- Private badge
+                    div(class="absolute top-2 left-2 px-2 py-1 bg-amber-500/90 rounded-full text-xs font-medium flex items-center gap-1")
+                      svg(class="w-3 h-3" fill="currentColor" viewBox="0 0 20 20")
+                        path(fill-rule="evenodd" d="M5 9V7a5 5 0 0110 0v2a2 2 0 012 2v5a2 2 0 01-2 2H5a2 2 0 01-2-2v-5a2 2 0 012-2zm8-2v2H7V7a3 3 0 016 0z" clip-rule="evenodd")
+                      | Private
+                    div(class="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity")
+              else
+                a(href=mediaUrl download=image.filename class="image-card group block cursor-pointer")
+                  div(class="relative rounded-xl overflow-hidden bg-neutral-900 aspect-square")
+                    div(class="w-full h-full flex flex-col items-center justify-center p-4 text-center")
+                      if isAudio
+                        svg(class="w-12 h-12 text-purple-400 mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24")
+                          path(stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9 19V6l12-3v13M9 19c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2zm12-3c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2zM9 10l12-3")
+                      else
+                        svg(class="w-12 h-12 text-neutral-400 mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24")
+                          path(stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z")
+                      span(class="text-xs text-neutral-400 truncate w-full") #{image.filename}
+                    //- Type badge
+                    if isAudio
+                      div(class="absolute top-2 right-2 px-2 py-1 bg-purple-500/70 rounded-full text-xs font-medium")
+                        | Audio
+                    else
+                      div(class="absolute top-2 right-2 px-2 py-1 bg-neutral-700/70 rounded-full text-xs font-medium")
         else
           //- Paywall
           div(class="bg-gradient-to-br from-neutral-900 to-neutral-800 rounded-2xl p-8 text-center border border-neutral-700")
@@ -116,7 +192,7 @@ block content
             
             h3(class="text-2xl font-bold mb-2") Unlock Private Content
             p(class="text-neutral-400 mb-6")
-              | Get access to #{privateCount} exclusive image#{privateCount !== 1 ? 's' : ''} from #{profileUser.username}
+              | Get access to #{privateCount} exclusive file#{privateCount !== 1 ? 's' : ''} from #{profileUser.username}
             
             div(class="mb-6")
               span(class="text-4xl font-bold") $#{(profileUser.privatePrice / 100).toFixed(2)}
