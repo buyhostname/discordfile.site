@@ -2,6 +2,16 @@
 
 A Discord-based file hosting platform where creators upload files via a Discord bot and viewers pay to unlock private content.
 
+## Screenshots
+
+<p align="center">
+  <img src="screenshot-home.png" width="250" alt="Home - Creator list">
+  <img src="screenshot-profile.png" width="250" alt="User profile">
+  <img src="screenshot-viewer.png" width="250" alt="TikTok-style viewer">
+</p>
+
+*Mobile view: Home page, User profile with blurred premium content, TikTok-style fullscreen viewer*
+
 ## Features
 
 - **Discord Bot Integration**: Upload files by sending them to the bot (DM = private, channel = public)
