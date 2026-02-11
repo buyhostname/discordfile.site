@@ -1,0 +1,760 @@
+doctype html
+html(lang="en")
+  head
+    meta(charset="UTF-8")
+    meta(name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no")
+    title #{title}
+    link(rel="stylesheet" href="https://cdn.jsdelivr.net/npm/swiper@11/swiper-bundle.min.css")
+    //- Blurhash decoder (ESM)
+    script(type="module").
+      import { decode } from 'https://unpkg.com/blurhash/dist/esm/index.js';
+      window.blurhashDecode = { decode };
+    style.
+      * { margin: 0; padding: 0; box-sizing: border-box; }
+      html, body { 
+        height: 100%; 
+        background: #000; 
+        overflow: hidden;
+        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+        color: white;
+      }
+      
+      .swiper {
+        width: 100%;
+        height: 100%;
+      }
+      
+      .swiper-slide {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        background: #000;
+      }
+      
+      .slide-content {
+        position: relative;
+        width: 100%;
+        height: 100%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+      }
+      
+      .slide-content img,
+      .slide-content video {
+        max-width: 100%;
+        max-height: 100%;
+        object-fit: contain;
+      }
+      
+      .overlay-top {
+        position: fixed;
+        top: 0;
+        left: 0;
+        right: 0;
+        padding: 1rem;
+        background: linear-gradient(to bottom, rgba(0,0,0,0.7), transparent);
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        z-index: 10;
+      }
+      
+      .back-btn {
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+        color: white;
+        text-decoration: none;
+        font-size: 0.9rem;
+        padding: 0.5rem 1rem;
+        background: rgba(255,255,255,0.1);
+        border-radius: 2rem;
+        transition: background 0.2s;
+      }
+      .back-btn:hover { background: rgba(255,255,255,0.2); }
+      
+      .bottom-info {
+        position: fixed;
+        bottom: 1.5rem;
+        right: 1.5rem;
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+        z-index: 10;
+      }
+      
+      .counter {
+        color: rgba(255,255,255,0.7);
+        font-size: 0.75rem;
+        padding: 0.25rem 0.5rem;
+        background: rgba(0,0,0,0.5);
+        border-radius: 0.25rem;
+      }
+      
+      .time-badge {
+        padding: 0.25rem 0.5rem;
+        background: rgba(0,0,0,0.5);
+        border-radius: 0.25rem;
+        font-size: 0.75rem;
+        color: rgba(255,255,255,0.7);
+      }
+      
+      .share-btn {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        width: 40px;
+        height: 40px;
+        background: rgba(255,255,255,0.1);
+        border: none;
+        border-radius: 50%;
+        color: white;
+        cursor: pointer;
+        transition: background 0.2s;
+      }
+      .share-btn:hover { background: rgba(255,255,255,0.2); }
+      
+      .filter-dropdown {
+        position: relative;
+      }
+      .filter-selected {
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+        padding: 0.5rem 1rem;
+        background: rgba(255,255,255,0.1);
+        border: none;
+        border-radius: 2rem;
+        color: white;
+        font-size: 0.85rem;
+        cursor: pointer;
+        transition: all 0.2s;
+      }
+      .filter-selected:hover {
+        background: rgba(255,255,255,0.15);
+      }
+      .filter-selected svg {
+        width: 16px;
+        height: 16px;
+        transition: transform 0.2s;
+      }
+      .filter-dropdown.open .filter-selected svg {
+        transform: rotate(180deg);
+      }
+      .filter-options {
+        position: absolute;
+        top: calc(100% + 0.5rem);
+        left: 0;
+        background: rgba(30,30,30,0.95);
+        border-radius: 0.75rem;
+        overflow: hidden;
+        opacity: 0;
+        visibility: hidden;
+        transform: translateY(-10px);
+        transition: all 0.2s;
+        min-width: 140px;
+        backdrop-filter: blur(10px);
+        box-shadow: 0 4px 20px rgba(0,0,0,0.5);
+      }
+      .filter-dropdown.open .filter-options {
+        opacity: 1;
+        visibility: visible;
+        transform: translateY(0);
+      }
+      .filter-option {
+        display: block;
+        width: 100%;
+        padding: 0.75rem 1rem;
+        background: none;
+        border: none;
+        color: rgba(255,255,255,0.7);
+        font-size: 0.85rem;
+        text-align: left;
+        cursor: pointer;
+        transition: all 0.2s;
+      }
+      .filter-option:hover {
+        background: rgba(255,255,255,0.1);
+        color: white;
+      }
+      .filter-option.active {
+        color: white;
+        background: rgba(255,255,255,0.05);
+      }
+      
+      .slide-info {
+        position: absolute;
+        bottom: 5rem;
+        left: 1rem;
+        right: 80px;
+        color: white;
+      }
+      .slide-info .filename {
+        font-weight: 600;
+        font-size: 0.85rem;
+        opacity: 0.7;
+        margin-bottom: 0.25rem;
+      }
+      .slide-info .description {
+        font-size: 0.95rem;
+      }
+      
+      .badge {
+        position: absolute;
+        top: 5rem;
+        padding: 0.25rem 0.75rem;
+        border-radius: 1rem;
+        font-size: 0.75rem;
+        font-weight: 500;
+        color: white;
+        z-index: 5;
+      }
+      .badge-premium {
+        left: 1rem;
+        background: rgba(245, 158, 11, 0.9);
+      }
+      .badge-type {
+        right: 1rem;
+        background: rgba(0,0,0,0.6);
+      }
+      
+      /* Locked content styles */
+      .locked-overlay {
+        position: absolute;
+        inset: 0;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        background: rgba(0,0,0,0.4);
+        z-index: 5;
+      }
+      
+      .locked-overlay canvas {
+        position: absolute;
+        inset: 0;
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
+        z-index: -1;
+        filter: brightness(0.85) saturate(0.8);
+      }
+      
+      .unlock-box {
+        text-align: center;
+        padding: 2rem;
+      }
+      
+      .unlock-icon {
+        width: 64px;
+        height: 64px;
+        border-radius: 50%;
+        background: rgba(245, 158, 11, 0.9);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        margin: 0 auto 1rem;
+      }
+      .unlock-icon svg {
+        width: 32px;
+        height: 32px;
+      }
+      
+      .unlock-title {
+        font-size: 1.25rem;
+        font-weight: 600;
+        margin-bottom: 0.5rem;
+      }
+      
+      .unlock-subtitle {
+        font-size: 0.9rem;
+        opacity: 0.8;
+        margin-bottom: 1.5rem;
+      }
+      
+      .unlock-btn {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.5rem;
+        padding: 0.75rem 1.5rem;
+        background: linear-gradient(to right, #f59e0b, #ea580c);
+        border: none;
+        border-radius: 0.75rem;
+        color: white;
+        font-size: 1rem;
+        font-weight: 600;
+        cursor: pointer;
+        transition: transform 0.2s, box-shadow 0.2s;
+      }
+      .unlock-btn:hover {
+        transform: scale(1.05);
+        box-shadow: 0 4px 20px rgba(245, 158, 11, 0.4);
+      }
+      
+      /* File slide styles */
+      .file-slide {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        text-align: center;
+        padding: 2rem;
+      }
+      
+      .file-icon {
+        width: 80px;
+        height: 80px;
+        border-radius: 1rem;
+        background: rgba(255,255,255,0.1);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        margin-bottom: 1rem;
+      }
+      .file-icon svg {
+        width: 40px;
+        height: 40px;
+        opacity: 0.8;
+      }
+      .file-icon.audio { background: rgba(168, 85, 247, 0.2); }
+      .file-icon.audio svg { color: #a855f7; }
+      .file-icon.pdf { background: rgba(239, 68, 68, 0.2); }
+      .file-icon.pdf svg { color: #ef4444; }
+      
+      .file-name {
+        font-size: 1.1rem;
+        font-weight: 500;
+        margin-bottom: 0.5rem;
+        word-break: break-word;
+        max-width: 300px;
+      }
+      
+      .file-type {
+        font-size: 0.85rem;
+        opacity: 0.6;
+        text-transform: uppercase;
+        margin-bottom: 1.5rem;
+      }
+      
+      .download-btn {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.5rem;
+        padding: 0.75rem 1.5rem;
+        background: rgba(255,255,255,0.15);
+        border: none;
+        border-radius: 0.75rem;
+        color: white;
+        font-size: 1rem;
+        font-weight: 500;
+        cursor: pointer;
+        text-decoration: none;
+        transition: background 0.2s;
+      }
+      .download-btn:hover {
+        background: rgba(255,255,255,0.25);
+      }
+      
+      .empty-state {
+        height: 100vh;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        text-align: center;
+        padding: 2rem;
+      }
+      .empty-state h2 { margin-bottom: 0.5rem; }
+      .empty-state p { opacity: 0.6; margin-bottom: 1.5rem; }
+      .empty-state a {
+        color: white;
+        background: #6366f1;
+        padding: 0.75rem 1.5rem;
+        border-radius: 0.5rem;
+        text-decoration: none;
+      }
+
+  body
+    if allMedia.length === 0
+      div(class="empty-state")
+        h2 No content yet
+        p #{profileUser.username} hasn't uploaded anything.
+        a(href=`/u/${profileUser.username}`) Back to profile
+    else
+      //- Top overlay
+      div(class="overlay-top")
+        a(href=`/u/${profileUser.username}` class="back-btn")
+          svg(fill="none" stroke="currentColor" viewBox="0 0 24 24" style="width:20px;height:20px")
+            path(stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7")
+          | #{profileUser.username}
+        
+        //- Filter dropdown
+        - var publicCount = allMedia.filter(m => !m.isPrivate).length
+        - var premiumCount = allMedia.filter(m => m.isPrivate).length
+        div(class="filter-dropdown" id="filter-dropdown")
+          button(class="filter-selected" id="filter-selected")
+            span All (#{allMedia.length})
+            svg(fill="none" stroke="currentColor" viewBox="0 0 24 24")
+              path(stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7")
+          div(class="filter-options")
+            button(class="filter-option active" data-filter="all") All (#{allMedia.length})
+            button(class="filter-option" data-filter="public") Public (#{publicCount})
+            button(class="filter-option" data-filter="premium") Premium (#{premiumCount})
+        
+        //- Share button
+        button(class="share-btn" id="share-btn" title="Share")
+          svg(fill="none" stroke="currentColor" viewBox="0 0 24 24" style="width:20px;height:20px")
+            path(stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.368 2.684 3 3 0 00-5.368-2.684z")
+      
+      //- Bottom info (counter + time)
+      div(class="bottom-info")
+        div(class="counter" id="counter") 1 / #{allMedia.length}
+        div(class="time-badge" id="time-badge")
+      
+      //- Swiper
+      div(class="swiper" id="viewer-swiper")
+        div(class="swiper-wrapper")
+          each item, index in allMedia
+            - var ext = item.filename ? item.filename.split('.').pop().toLowerCase() : ''
+            - var isPdf = ext === 'pdf'
+            - var isDoc = ['doc', 'docx', 'txt', 'rtf'].includes(ext)
+            
+            div(class="swiper-slide" data-index=index data-id=item.id data-locked=item.isLocked data-filename=item.filename data-private=item.isPrivate)
+              if item.isLocked
+                //- Locked premium content - show blurhash with unlock prompt
+                div(class="slide-content")
+                  div(class="locked-overlay")
+                    canvas(class="blurhash-canvas" data-preview-id=item.id)
+                    div(class="unlock-box")
+                      div(class="unlock-icon")
+                        svg(fill="currentColor" viewBox="0 0 20 20")
+                          path(fill-rule="evenodd" d="M5 9V7a5 5 0 0110 0v2a2 2 0 012 2v5a2 2 0 01-2 2H5a2 2 0 01-2-2v-5a2 2 0 012-2zm8-2v2H7V7a3 3 0 016 0z" clip-rule="evenodd")
+                      div(class="unlock-title") Premium Content
+                      div(class="unlock-subtitle") Unlock all of #{profileUser.username}'s premium content
+                      button(class="unlock-btn" data-user-id=profileUser.id)
+                        svg(fill="currentColor" viewBox="0 0 20 20" style="width:20px;height:20px")
+                          path(fill-rule="evenodd" d="M5 9V7a5 5 0 0110 0v2a2 2 0 012 2v5a2 2 0 01-2 2H5a2 2 0 01-2-2v-5a2 2 0 012-2zm8-2v2H7V7a3 3 0 016 0z" clip-rule="evenodd")
+                        | Unlock - $#{(profileUser.privatePrice / 100).toFixed(2)}
+                  if item.isVideo
+                    div(class="badge badge-type") Video
+                  else if item.isAudio
+                    div(class="badge badge-type") Audio
+                  else if isPdf
+                    div(class="badge badge-type") PDF
+                  else if !item.isImage
+                    div(class="badge badge-type") File
+              else if item.isImage
+                //- Unlocked image
+                div(class="slide-content")
+                  img(src=item.url alt=item.filename loading="lazy")
+                  if item.isPrivate
+                    div(class="badge badge-premium") Premium
+                  if item.description
+                    div(class="slide-info")
+                      div(class="description") #{item.description}
+              else if item.isVideo
+                //- Unlocked video
+                div(class="slide-content")
+                  video(src=item.url playsinline controls loop preload="metadata")
+                  if item.isPrivate
+                    div(class="badge badge-premium") Premium
+                  if item.description
+                    div(class="slide-info")
+                      div(class="description") #{item.description}
+              else
+                //- File (audio, PDF, etc.)
+                div(class="slide-content")
+                  div(class="file-slide")
+                    if item.isAudio
+                      div(class="file-icon audio")
+                        svg(fill="none" stroke="currentColor" viewBox="0 0 24 24")
+                          path(stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9 19V6l12-3v13M9 19c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2zm12-3c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2zM9 10l12-3")
+                      if item.url
+                        audio(src=item.url controls style="width: 100%; max-width: 300px; margin-bottom: 1rem;")
+                    else if isPdf
+                      div(class="file-icon pdf")
+                        svg(fill="none" stroke="currentColor" viewBox="0 0 24 24")
+                          path(stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z")
+                          path(stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9 13h6m-6 4h4")
+                    else
+                      div(class="file-icon")
+                        svg(fill="none" stroke="currentColor" viewBox="0 0 24 24")
+                          path(stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z")
+                    
+                    div(class="file-name") #{item.filename}
+                    div(class="file-type") #{ext.toUpperCase()} File
+                    
+                    a(href=item.url download=item.filename class="download-btn")
+                      svg(fill="none" stroke="currentColor" viewBox="0 0 24 24" style="width:20px;height:20px")
+                        path(stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4")
+                      | Download
+                  
+                  if item.isPrivate
+                    div(class="badge badge-premium") Premium
+                  if item.description
+                    div(class="slide-info")
+                      div(class="description") #{item.description}
+      
+      //- Action buttons removed
+
+      script(src="https://cdn.jsdelivr.net/npm/swiper@11/swiper-bundle.min.js")
+      script.
+        const allMedia = !{JSON.stringify(allMedia)};
+        const startIndex = #{startIndex};
+        const userId = '#{profileUser.id}';
+        
+        // Wait for blurhash module to load
+        function waitForBlurhash(callback) {
+          if (window.blurhashDecode) {
+            callback();
+          } else {
+            setTimeout(() => waitForBlurhash(callback), 50);
+          }
+        }
+        
+        // Render blurhash to canvas
+        async function renderBlurhash(canvas, previewId) {
+          try {
+            const res = await fetch(`/preview/${previewId}`);
+            const data = await res.json();
+            if (!data.blurhash) return;
+            
+            const width = 256;
+            const height = 256;
+            const pixels = blurhashDecode.decode(data.blurhash, width, height);
+            
+            canvas.width = width;
+            canvas.height = height;
+            const ctx = canvas.getContext('2d');
+            const imageData = ctx.createImageData(width, height);
+            imageData.data.set(pixels);
+            ctx.putImageData(imageData, 0, 0);
+          } catch (err) {
+            console.error('Blurhash render error:', err);
+          }
+        }
+        
+        // Render all blurhash canvases once module is loaded
+        waitForBlurhash(() => {
+          document.querySelectorAll('.blurhash-canvas').forEach(canvas => {
+            renderBlurhash(canvas, canvas.dataset.previewId);
+          });
+        });
+        
+        // Unlock button handlers
+        document.querySelectorAll('.unlock-btn').forEach(btn => {
+          btn.addEventListener('click', async () => {
+            btn.disabled = true;
+            btn.innerHTML = 'Loading...';
+            
+            const res = await fetch(`/api/pay/${btn.dataset.userId}`, { method: 'POST' });
+            const data = await res.json();
+            
+            if (data.url) {
+              window.location.href = data.url;
+            } else {
+              alert(data.error || 'Payment failed');
+              btn.disabled = false;
+              btn.innerHTML = `<svg fill="currentColor" viewBox="0 0 20 20" style="width:20px;height:20px"><path fill-rule="evenodd" d="M5 9V7a5 5 0 0110 0v2a2 2 0 012 2v5a2 2 0 01-2 2H5a2 2 0 01-2-2v-5a2 2 0 012-2zm8-2v2H7V7a3 3 0 016 0z" clip-rule="evenodd"></path></svg> Unlock`;
+            }
+          });
+        });
+        
+        // Track current filter
+        let currentFilter = 'all';
+        let swiper = null;
+        
+        // Relative time helper
+        function relativeTime(date) {
+          const now = new Date();
+          const d = new Date(date);
+          const diff = Math.floor((now - d) / 1000);
+          if (diff < 60) return 'now';
+          if (diff < 3600) return Math.floor(diff / 60) + 'm';
+          if (diff < 86400) return Math.floor(diff / 3600) + 'h';
+          if (diff < 604800) return Math.floor(diff / 86400) + 'd';
+          if (diff < 2592000) return Math.floor(diff / 604800) + 'w';
+          if (diff < 31536000) return Math.floor(diff / 2592000) + 'mo';
+          return Math.floor(diff / 31536000) + 'y';
+        }
+        
+        function updateCounter(activeIndex) {
+          // Count visible slides
+          let visibleCount = 0;
+          let currentPosition = 0;
+          const currentIndex = activeIndex !== undefined ? activeIndex : (swiper ? swiper.activeIndex : startIndex);
+          
+          allMedia.forEach((item, index) => {
+            const isPublic = !item.isPrivate;
+            const isPremium = item.isPrivate;
+            
+            let show = false;
+            if (currentFilter === 'all') show = true;
+            else if (currentFilter === 'public') show = isPublic;
+            else if (currentFilter === 'premium') show = isPremium;
+            
+            if (show) {
+              visibleCount++;
+              if (index < currentIndex) currentPosition++;
+              if (index === currentIndex) currentPosition = visibleCount;
+            }
+          });
+          
+          document.getElementById('counter').textContent = `${currentPosition} / ${visibleCount}`;
+        }
+        
+        function updateUI(index) {
+          const item = allMedia[index];
+          if (!item) return;
+          
+          // Update counter
+          updateCounter(index);
+          
+          // Update time badge
+          if (item.createdAt) {
+            document.getElementById('time-badge').textContent = relativeTime(item.createdAt);
+          }
+        }
+        
+        function pauseAllMedia() {
+          document.querySelectorAll('#viewer-swiper video').forEach(v => v.pause());
+          document.querySelectorAll('#viewer-swiper audio').forEach(a => a.pause());
+        }
+        
+        function handleMedia(index) {
+          const slide = document.querySelector(`.swiper-slide[data-index="${index}"]`);
+          const video = slide?.querySelector('video');
+          const audio = slide?.querySelector('audio');
+          
+          if (video) {
+            video.play().catch(() => {});
+          }
+          // Don't autoplay audio - let user control it
+        }
+        
+        swiper = new Swiper('#viewer-swiper', {
+          direction: 'vertical',
+          initialSlide: startIndex,
+          mousewheel: true,
+          keyboard: { enabled: true },
+          on: {
+            init: function() {
+              updateUI(this.activeIndex);
+              handleMedia(this.activeIndex);
+            },
+            slideChange: function() {
+              updateUI(this.activeIndex);
+              pauseAllMedia();
+              handleMedia(this.activeIndex);
+            }
+          }
+        });
+        
+        // Filter dropdown functionality
+        const filterDropdown = document.getElementById('filter-dropdown');
+        const filterSelected = document.getElementById('filter-selected');
+        
+        // Toggle dropdown
+        filterSelected.addEventListener('click', (e) => {
+          e.stopPropagation();
+          filterDropdown.classList.toggle('open');
+        });
+        
+        // Close dropdown when clicking outside
+        document.addEventListener('click', () => {
+          filterDropdown.classList.remove('open');
+        });
+        
+        // Handle filter option selection
+        document.querySelectorAll('.filter-option').forEach(option => {
+          option.addEventListener('click', (e) => {
+            e.stopPropagation();
+            
+            // Update active state
+            document.querySelectorAll('.filter-option').forEach(o => o.classList.remove('active'));
+            option.classList.add('active');
+            
+            // Update selected button text
+            filterSelected.querySelector('span').textContent = option.textContent;
+            
+            // Close dropdown
+            filterDropdown.classList.remove('open');
+            
+            currentFilter = option.dataset.filter;
+            
+            // Get visible slides based on filter
+            const visibleIndices = [];
+            allMedia.forEach((item, index) => {
+              const slide = document.querySelector(`.swiper-slide[data-index="${index}"]`);
+              if (!slide) return;
+              
+              const isPublic = !item.isPrivate;
+              const isPremium = item.isPrivate;
+              
+              let show = false;
+              if (currentFilter === 'all') show = true;
+              else if (currentFilter === 'public') show = isPublic;
+              else if (currentFilter === 'premium') show = isPremium;
+              
+              slide.style.display = show ? '' : 'none';
+              if (show) visibleIndices.push(index);
+            });
+            
+            // Update swiper to handle hidden slides
+            swiper.update();
+            
+            // If current slide is now hidden, go to first visible slide
+            const currentIndex = swiper.activeIndex;
+            const currentSlide = document.querySelector(`.swiper-slide[data-index="${currentIndex}"]`);
+            if (currentSlide && currentSlide.style.display === 'none' && visibleIndices.length > 0) {
+              // Find first visible slide
+              const firstVisible = visibleIndices[0];
+              swiper.slideTo(firstVisible);
+            }
+            
+            updateCounter();
+          });
+        });
+        
+        // Share button functionality
+        document.getElementById('share-btn').addEventListener('click', async () => {
+          const url = window.location.href;
+          
+          // Check if mobile (has native share) vs desktop
+          const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+          
+          if (isMobile && navigator.share) {
+            // Mobile: use native share
+            try {
+              await navigator.share({
+                title: document.title,
+                url: url
+              });
+            } catch (err) {
+              // User cancelled or error - ignore
+            }
+          } else {
+            // Desktop: copy to clipboard
+            try {
+              await navigator.clipboard.writeText(url);
+              // Show brief "Copied!" feedback
+              const btn = document.getElementById('share-btn');
+              const originalHTML = btn.innerHTML;
+              btn.innerHTML = '<svg fill="none" stroke="currentColor" viewBox="0 0 24 24" style="width:20px;height:20px"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg>';
+              btn.style.background = 'rgba(34, 197, 94, 0.3)';
+              setTimeout(() => {
+                btn.innerHTML = originalHTML;
+                btn.style.background = '';
+              }, 1500);
+            } catch (err) {
+              // Fallback for older browsers
+              const input = document.createElement('input');
+              input.value = url;
+              document.body.appendChild(input);
+              input.select();
+              document.execCommand('copy');
+              document.body.removeChild(input);
+            }
+          }
+        });

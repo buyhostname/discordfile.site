@@ -1,30 +1,6 @@
 extends layout
 
 block content
-  //- Header/Navbar
-  header(class="sticky top-0 z-50 bg-black/90 backdrop-blur border-b border-neutral-800")
-    div(class="container mx-auto max-w-6xl px-4 py-3 flex items-center justify-between")
-      a(href="/" class="text-xl font-bold tracking-tight")
-        span(class="text-white") Discord
-        span(class="text-indigo-400") File
-      
-      div(class="flex items-center gap-4")
-        a(href="/" class="text-sm text-neutral-400 hover:text-white transition") Browse
-        if user
-          a(href="/my" class="text-sm text-neutral-400 hover:text-white transition") My Images
-          div(class="flex items-center gap-3")
-            if user.avatar
-              img(src=`https://cdn.discordapp.com/avatars/${user.discordId}/${user.avatar}.png` alt="Avatar" class="w-8 h-8 rounded-full")
-            else
-              div(class="w-8 h-8 rounded-full bg-indigo-600 flex items-center justify-center text-sm font-medium")
-                | #{user.username.charAt(0).toUpperCase()}
-            a(href="/auth/logout" class="text-sm text-neutral-400 hover:text-white transition") Logout
-        else
-          a(href="/auth/discord" class="inline-flex items-center gap-2 px-4 py-2 bg-indigo-600 hover:bg-indigo-500 rounded-lg text-sm font-medium transition")
-            svg(class="w-5 h-5" viewBox="0 0 24 24" fill="currentColor")
-              path(d="M20.317 4.37a19.791 19.791 0 0 0-4.885-1.515.074.074 0 0 0-.079.037c-.21.375-.444.864-.608 1.25a18.27 18.27 0 0 0-5.487 0 12.64 12.64 0 0 0-.617-1.25.077.077 0 0 0-.079-.037A19.736 19.736 0 0 0 3.677 4.37a.07.07 0 0 0-.032.027C.533 9.046-.32 13.58.099 18.057a.082.082 0 0 0 .031.057 19.9 19.9 0 0 0 5.993 3.03.078.078 0 0 0 .084-.028 14.09 14.09 0 0 0 1.226-1.994.076.076 0 0 0-.041-.106 13.107 13.107 0 0 1-1.872-.892.077.077 0 0 1-.008-.128 10.2 10.2 0 0 0 .372-.292.074.074 0 0 1 .077-.01c3.928 1.793 8.18 1.793 12.062 0a.074.074 0 0 1 .078.01c.12.098.246.198.373.292a.077.077 0 0 1-.006.127 12.299 12.299 0 0 1-1.873.892.077.077 0 0 0-.041.107c.36.698.772 1.362 1.225 1.993a.076.076 0 0 0 .084.028 19.839 19.839 0 0 0 6.002-3.03.077.077 0 0 0 .032-.054c.5-5.177-.838-9.674-3.549-13.66a.061.061 0 0 0-.031-.03zM8.02 15.33c-1.183 0-2.157-1.085-2.157-2.419 0-1.333.956-2.419 2.157-2.419 1.21 0 2.176 1.096 2.157 2.42 0 1.333-.956 2.418-2.157 2.418zm7.975 0c-1.183 0-2.157-1.085-2.157-2.419 0-1.333.955-2.419 2.157-2.419 1.21 0 2.176 1.096 2.157 2.42 0 1.333-.946 2.418-2.157 2.418z")
-            | Login
-
   //- Main content
   main(class="container mx-auto max-w-6xl px-4 py-8")
     //- Profile header
@@ -43,104 +19,84 @@ block content
         if profileUser.bio
           p(class="text-neutral-400 mt-2 max-w-xl") #{profileUser.bio}
         
+        - var publicCount = allContent.filter(c => !c.isPrivate).length
         div(class="flex items-center justify-center md:justify-start gap-6 mt-4 text-sm")
           div
-            span(class="font-semibold") #{publicImages.length}
+            span(class="font-semibold") #{allContent.length}
+            span(class="text-neutral-400 ml-1") total
+          div
+            span(class="font-semibold") #{publicCount}
             span(class="text-neutral-400 ml-1") public
           if privateCount > 0
             div
-              span(class="font-semibold") #{privateCount}
-              span(class="text-neutral-400 ml-1") private
+              span(class="font-semibold text-amber-400") #{privateCount}
+              span(class="text-neutral-400 ml-1") premium
+        
+        //- Unlock button in header if has premium content and not unlocked
+        if privateCount > 0 && !isOwner && !hasAccess
+          button(class="unlock-btn mt-4 px-6 py-2 bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-400 hover:to-orange-400 rounded-lg font-semibold transition inline-flex items-center gap-2" data-user-id=profileUser.id)
+            svg(class="w-4 h-4" fill="currentColor" viewBox="0 0 20 20")
+              path(fill-rule="evenodd" d="M5 9V7a5 5 0 0110 0v2a2 2 0 012 2v5a2 2 0 01-2 2H5a2 2 0 01-2-2v-5a2 2 0 012-2zm8-2v2H7V7a3 3 0 016 0z" clip-rule="evenodd")
+            | Unlock All - $#{(profileUser.privatePrice / 100).toFixed(2)}
         
         if isOwner
           a(href="/my" class="inline-block mt-4 px-4 py-2 bg-neutral-800 hover:bg-neutral-700 rounded-lg text-sm transition")
             | Edit Profile
 
-    //- Public images section
-    if publicImages.length > 0
-      section(class="mb-12")
-        h2(class="text-xl font-semibold mb-4 flex items-center gap-2")
-          svg(class="w-5 h-5 text-green-400" fill="currentColor" viewBox="0 0 20 20")
-            path(d="M10 12a2 2 0 100-4 2 2 0 000 4z")
-            path(fill-rule="evenodd" d="M.458 10C1.732 5.943 5.522 3 10 3s8.268 2.943 9.542 7c-1.274 4.057-5.064 7-9.542 7S1.732 14.057.458 10zM14 10a4 4 0 11-8 0 4 4 0 018 0z" clip-rule="evenodd")
-          | Public Images
-        
-        div(class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4")
-          each image in publicImages
-            - var mediaUrl = '/file/' + image.id
-            - var isVideo = image.contentType && image.contentType.startsWith('video/')
-            - var isImage = image.contentType && image.contentType.startsWith('image/')
-            - var isAudio = image.contentType && image.contentType.startsWith('audio/')
-            if isImage || isVideo
-              a(href=mediaUrl target="_blank" class="image-card group block cursor-pointer")
-                div(class="relative rounded-xl overflow-hidden bg-neutral-900 aspect-square")
-                  if isVideo
-                    video(
-                      src=mediaUrl
-                      class="w-full h-full object-cover"
-                      muted
-                      loop
-                      playsinline
-                      onmouseenter="this.play()"
-                      onmouseleave="this.pause(); this.currentTime=0;"
-                    )
-                  else
-                    img(src=mediaUrl alt=image.filename class="w-full h-full object-cover" loading="lazy")
-                  //- Type badge
-                  if isVideo
-                    div(class="absolute top-2 right-2 px-2 py-1 bg-black/70 rounded-full text-xs font-medium flex items-center gap-1")
-                      svg(class="w-3 h-3" fill="currentColor" viewBox="0 0 20 20")
-                        path(fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM9.555 7.168A1 1 0 008 8v4a1 1 0 001.555.832l3-2a1 1 0 000-1.664l-3-2z" clip-rule="evenodd")
-                      | Video
-                  div(class="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity flex flex-col justify-end")
-                    if image.description
-                      div(class="p-3 text-sm")
-                        p(class="line-clamp-2") #{image.description}
-            else
-              a(href=mediaUrl download=image.filename class="image-card group block cursor-pointer")
-                div(class="relative rounded-xl overflow-hidden bg-neutral-900 aspect-square")
-                  div(class="w-full h-full flex flex-col items-center justify-center p-4 text-center")
-                    if isAudio
-                      svg(class="w-12 h-12 text-purple-400 mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24")
-                        path(stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9 19V6l12-3v13M9 19c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2zm12-3c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2zM9 10l12-3")
-                    else
-                      svg(class="w-12 h-12 text-neutral-400 mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24")
-                        path(stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z")
-                    span(class="text-xs text-neutral-400 truncate w-full") #{image.filename}
-                  //- Type badge
-                  if isAudio
-                    div(class="absolute top-2 right-2 px-2 py-1 bg-purple-500/70 rounded-full text-xs font-medium")
-                      | Audio
-                  else
-                    div(class="absolute top-2 right-2 px-2 py-1 bg-neutral-700/70 rounded-full text-xs font-medium")
-                      | File
-                  div(class="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center")
-                    div(class="p-3 bg-white/20 rounded-full")
-                      svg(class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24")
-                        path(stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4")
-    else if !isOwner
-      div(class="text-center py-10 text-neutral-500")
-        | No public images yet
+    //- Filter tabs
+    - var publicCount = allContent.filter(c => !c.isPrivate).length
+    if allContent.length > 0
+      div(class="flex items-center gap-2 mb-6")
+        button(class="filter-tab active px-4 py-2 rounded-lg text-sm font-medium transition" data-filter="all")
+          | All
+          span(class="ml-1.5 px-1.5 py-0.5 bg-white/10 rounded text-xs") #{allContent.length}
+        button(class="filter-tab px-4 py-2 rounded-lg text-sm font-medium transition" data-filter="public")
+          | Public
+          span(class="ml-1.5 px-1.5 py-0.5 bg-white/10 rounded text-xs") #{publicCount}
+        button(class="filter-tab px-4 py-2 rounded-lg text-sm font-medium transition" data-filter="premium")
+          | Premium
+          span(class="ml-1.5 px-1.5 py-0.5 bg-amber-500/20 text-amber-400 rounded text-xs") #{privateCount}
 
-    //- Private images section
-    if privateCount > 0
-      section
-        h2(class="text-xl font-semibold mb-4 flex items-center gap-2")
-          svg(class="w-5 h-5 text-amber-400" fill="currentColor" viewBox="0 0 20 20")
-            path(fill-rule="evenodd" d="M5 9V7a5 5 0 0110 0v2a2 2 0 012 2v5a2 2 0 01-2 2H5a2 2 0 01-2-2v-5a2 2 0 012-2zm8-2v2H7V7a3 3 0 016 0z" clip-rule="evenodd")
-          | Private Content
-          span(class="text-sm font-normal text-neutral-400") (#{privateCount} files)
-
-        if isOwner || hasAccess
-          //- Show private files
-          div(class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4")
-            each image in privateImages
-              - var mediaUrl = '/file/' + image.id
-              - var isVideo = image.contentType && image.contentType.startsWith('video/')
-              - var isImage = image.contentType && image.contentType.startsWith('image/')
-              - var isAudio = image.contentType && image.contentType.startsWith('audio/')
-              if isImage || isVideo
-                a(href=mediaUrl target="_blank" class="image-card group block cursor-pointer")
+    //- Content grid (sorted by date, newest first)
+    if allContent.length > 0
+      div(class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4" id="content-grid")
+        each item, index in allContent
+          - var mediaUrl = '/file/' + item.id
+          - var previewUrl = '/preview/' + item.id
+          - var isVideo = item.contentType && item.contentType.startsWith('video/')
+          - var isImage = item.contentType && item.contentType.startsWith('image/')
+          - var isAudio = item.contentType && item.contentType.startsWith('audio/')
+          - var isLocked = item.isPrivate && !isOwner && !hasAccess
+          - var isMediaItem = isImage || isVideo
+          - var contentType = item.isPrivate ? 'premium' : 'public'
+          
+          if isMediaItem
+              if isLocked
+                //- Locked premium content - show blurhash with unlock overlay
+                div(class="content-item image-card group cursor-pointer locked-card" data-user-id=profileUser.id data-preview-id=item.id data-content-type="premium")
+                  div(class="relative rounded-xl overflow-hidden bg-neutral-900 aspect-square")
+                    //- Blurhash canvas (will be rendered by JS)
+                    canvas(class="blurhash-canvas w-full h-full" data-preview-id=item.id)
+                    
+                    //- Lock overlay
+                    div(class="absolute inset-0 bg-black/30 flex flex-col items-center justify-center")
+                      div(class="w-12 h-12 rounded-full bg-amber-500/90 flex items-center justify-center mb-2")
+                        svg(class="w-6 h-6 text-white" fill="currentColor" viewBox="0 0 20 20")
+                          path(fill-rule="evenodd" d="M5 9V7a5 5 0 0110 0v2a2 2 0 012 2v5a2 2 0 01-2 2H5a2 2 0 01-2-2v-5a2 2 0 012-2zm8-2v2H7V7a3 3 0 016 0z" clip-rule="evenodd")
+                      span(class="text-xs font-medium text-white/90") Premium
+                    
+                    //- Time badge
+                    span(class="absolute bottom-2 left-2 px-1.5 py-0.5 bg-black/60 rounded text-xs text-white/80 time-badge" data-time=item.createdAt.toISOString())
+                    
+                    //- Video badge if it's a video
+                    if isVideo
+                      div(class="absolute top-2 right-2 px-2 py-1 bg-black/70 rounded-full text-xs font-medium flex items-center gap-1")
+                        svg(class="w-3 h-3" fill="currentColor" viewBox="0 0 20 20")
+                          path(fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM9.555 7.168A1 1 0 008 8v4a1 1 0 001.555.832l3-2a1 1 0 000-1.664l-3-2z" clip-rule="evenodd")
+                        | Video
+              else
+                //- Unlocked content (public or has access)
+                a(href=`/view/${profileUser.username}?start=${index}` class="content-item image-card group block cursor-pointer" data-content-type=contentType)
                   div(class="relative rounded-xl overflow-hidden bg-neutral-900 aspect-square")
                     if isVideo
                       video(
@@ -153,151 +109,167 @@ block content
                         onmouseleave="this.pause(); this.currentTime=0;"
                       )
                     else
-                      img(src=mediaUrl alt=image.filename class="w-full h-full object-cover" loading="lazy")
+                      img(src=mediaUrl alt=item.filename class="w-full h-full object-cover" loading="lazy")
+                    
                     //- Type badge
                     if isVideo
                       div(class="absolute top-2 right-2 px-2 py-1 bg-black/70 rounded-full text-xs font-medium flex items-center gap-1")
                         svg(class="w-3 h-3" fill="currentColor" viewBox="0 0 20 20")
                           path(fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM9.555 7.168A1 1 0 008 8v4a1 1 0 001.555.832l3-2a1 1 0 000-1.664l-3-2z" clip-rule="evenodd")
                         | Video
-                    //- Private badge
-                    div(class="absolute top-2 left-2 px-2 py-1 bg-amber-500/90 rounded-full text-xs font-medium flex items-center gap-1")
-                      svg(class="w-3 h-3" fill="currentColor" viewBox="0 0 20 20")
+                    
+                    //- Premium badge for unlocked premium content
+                    if item.isPrivate
+                      div(class="absolute top-2 left-2 px-2 py-1 bg-amber-500/90 rounded-full text-xs font-medium flex items-center gap-1")
+                        svg(class="w-3 h-3" fill="currentColor" viewBox="0 0 20 20")
+                          path(fill-rule="evenodd" d="M5 9V7a5 5 0 0110 0v2a2 2 0 012 2v5a2 2 0 01-2 2H5a2 2 0 01-2-2v-5a2 2 0 012-2zm8-2v2H7V7a3 3 0 016 0z" clip-rule="evenodd")
+                        | Premium
+                    
+                    //- Time badge
+                    span(class="absolute bottom-2 left-2 px-1.5 py-0.5 bg-black/60 rounded text-xs text-white/80 time-badge" data-time=item.createdAt.toISOString())
+                    
+                    //- Hover overlay with description
+                    div(class="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity flex flex-col justify-end")
+                      if item.description
+                        div(class="p-3 text-sm")
+                          p(class="line-clamp-2") #{item.description}
+          else
+            //- Non-media files (audio, documents, etc.)
+            if isLocked
+              div(class="content-item image-card group cursor-pointer locked-card" data-user-id=profileUser.id data-content-type="premium")
+                div(class="relative rounded-xl overflow-hidden bg-neutral-900 aspect-square")
+                  div(class="w-full h-full flex flex-col items-center justify-center p-4 text-center bg-neutral-800")
+                    div(class="w-12 h-12 rounded-full bg-amber-500/90 flex items-center justify-center mb-2")
+                      svg(class="w-6 h-6 text-white" fill="currentColor" viewBox="0 0 20 20")
                         path(fill-rule="evenodd" d="M5 9V7a5 5 0 0110 0v2a2 2 0 012 2v5a2 2 0 01-2 2H5a2 2 0 01-2-2v-5a2 2 0 012-2zm8-2v2H7V7a3 3 0 016 0z" clip-rule="evenodd")
-                      | Private
-                    div(class="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity")
-              else
-                a(href=mediaUrl download=image.filename class="image-card group block cursor-pointer")
-                  div(class="relative rounded-xl overflow-hidden bg-neutral-900 aspect-square")
-                    div(class="w-full h-full flex flex-col items-center justify-center p-4 text-center")
-                      if isAudio
-                        svg(class="w-12 h-12 text-purple-400 mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24")
-                          path(stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9 19V6l12-3v13M9 19c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2zm12-3c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2zM9 10l12-3")
-                      else
-                        svg(class="w-12 h-12 text-neutral-400 mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24")
-                          path(stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z")
-                      span(class="text-xs text-neutral-400 truncate w-full") #{image.filename}
-                    //- Type badge
+                    span(class="text-xs text-neutral-400") Premium File
+                  if isAudio
+                    div(class="absolute top-2 right-2 px-2 py-1 bg-purple-500/70 rounded-full text-xs font-medium")
+                      | Audio
+                  else
+                    div(class="absolute top-2 right-2 px-2 py-1 bg-neutral-700/70 rounded-full text-xs font-medium")
+                      | File
+            else
+              a(href=mediaUrl download=item.filename class="content-item image-card group block cursor-pointer" data-content-type=contentType)
+                div(class="relative rounded-xl overflow-hidden bg-neutral-900 aspect-square")
+                  div(class="w-full h-full flex flex-col items-center justify-center p-4 text-center")
                     if isAudio
-                      div(class="absolute top-2 right-2 px-2 py-1 bg-purple-500/70 rounded-full text-xs font-medium")
-                        | Audio
+                      svg(class="w-12 h-12 text-purple-400 mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24")
+                        path(stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9 19V6l12-3v13M9 19c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2zm12-3c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2zM9 10l12-3")
                     else
-                      div(class="absolute top-2 right-2 px-2 py-1 bg-neutral-700/70 rounded-full text-xs font-medium")
-        else
-          //- Paywall
-          div(class="bg-gradient-to-br from-neutral-900 to-neutral-800 rounded-2xl p-8 text-center border border-neutral-700")
-            div(class="w-20 h-20 mx-auto mb-4 rounded-full bg-amber-500/20 flex items-center justify-center")
-              svg(class="w-10 h-10 text-amber-400" fill="currentColor" viewBox="0 0 20 20")
-                path(fill-rule="evenodd" d="M5 9V7a5 5 0 0110 0v2a2 2 0 012 2v5a2 2 0 01-2 2H5a2 2 0 01-2-2v-5a2 2 0 012-2zm8-2v2H7V7a3 3 0 016 0z" clip-rule="evenodd")
-            
-            h3(class="text-2xl font-bold mb-2") Unlock Private Content
-            p(class="text-neutral-400 mb-6")
-              | Get access to #{privateCount} exclusive file#{privateCount !== 1 ? 's' : ''} from #{profileUser.username}
-            
-            div(class="mb-6")
-              span(class="text-4xl font-bold") $#{(profileUser.privatePrice / 100).toFixed(2)}
-              span(class="text-neutral-400 ml-2") one-time payment
-            
-            button#unlock-btn(class="w-full max-w-xs mx-auto py-3 bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-400 hover:to-orange-400 rounded-xl font-semibold transition" data-user-id=profileUser.id)
-              | Unlock Now
-            
-            //- Test mode notice
-            div(class="mt-6 p-4 bg-yellow-500/10 border border-yellow-500/20 rounded-xl max-w-sm mx-auto")
-              p(class="text-yellow-400 text-xs font-medium mb-3") Payment Test Mode
-              div(class="space-y-2 text-left")
-                div(class="flex items-center justify-between gap-2")
-                  span(class="text-neutral-400 text-xs") Card
-                  div(class="flex items-center gap-2")
-                    code(class="text-xs bg-neutral-800 px-2 py-1 rounded") 4242 4242 4242 4242
-                    button(class="copy-btn p-1 hover:bg-neutral-700 rounded transition" data-copy="4242424242424242" title="Copy")
-                      svg(class="w-3.5 h-3.5 text-neutral-400" fill="none" stroke="currentColor" viewBox="0 0 24 24")
-                        path(stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z")
-                div(class="flex items-center justify-between gap-2")
-                  span(class="text-neutral-400 text-xs") Expiry
-                  div(class="flex items-center gap-2")
-                    code(class="text-xs bg-neutral-800 px-2 py-1 rounded") 04/42
-                    button(class="copy-btn p-1 hover:bg-neutral-700 rounded transition" data-copy="0442" title="Copy")
-                      svg(class="w-3.5 h-3.5 text-neutral-400" fill="none" stroke="currentColor" viewBox="0 0 24 24")
-                        path(stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z")
-                div(class="flex items-center justify-between gap-2")
-                  span(class="text-neutral-400 text-xs") CVC
-                  div(class="flex items-center gap-2")
-                    code(class="text-xs bg-neutral-800 px-2 py-1 rounded") 424
-                    button(class="copy-btn p-1 hover:bg-neutral-700 rounded transition" data-copy="424" title="Copy")
-                      svg(class="w-3.5 h-3.5 text-neutral-400" fill="none" stroke="currentColor" viewBox="0 0 24 24")
-                        path(stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z")
-
-            //- Blurred preview
-            div(class="mt-8 grid grid-cols-3 gap-2 max-w-sm mx-auto")
-              - for (let i = 0; i < Math.min(6, privateCount); i++)
-                div(class="aspect-square rounded-lg bg-neutral-700/50 animate-pulse")
-
-  //- Lightbox
-  div#lightbox(class="fixed inset-0 z-50 bg-black/95 hidden items-center justify-center cursor-zoom-out")
-    img#lightbox-img(class="max-w-full max-h-full object-contain")
-    button#lightbox-close(class="absolute top-4 right-4 text-white/60 hover:text-white")
-      svg(class="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24")
-        path(stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12")
+                      svg(class="w-12 h-12 text-neutral-400 mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24")
+                        path(stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z")
+                    span(class="text-xs text-neutral-400 truncate w-full") #{item.filename}
+                  if isAudio
+                    div(class="absolute top-2 right-2 px-2 py-1 bg-purple-500/70 rounded-full text-xs font-medium")
+                      | Audio
+                  else
+                    div(class="absolute top-2 right-2 px-2 py-1 bg-neutral-700/70 rounded-full text-xs font-medium")
+                      | File
+                  if item.isPrivate
+                    div(class="absolute top-2 left-2 px-2 py-1 bg-amber-500/90 rounded-full text-xs font-medium")
+                      | Premium
+                  div(class="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center")
+                    div(class="p-3 bg-white/20 rounded-full")
+                      svg(class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24")
+                        path(stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4")
+    else
+      //- Empty state
+      div(class="text-center py-20")
+        div(class="w-24 h-24 mx-auto mb-6 rounded-full bg-neutral-900 flex items-center justify-center")
+          svg(class="w-12 h-12 text-neutral-600" fill="none" stroke="currentColor" viewBox="0 0 24 24")
+            path(stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z")
+        h2(class="text-2xl font-bold mb-2") No content yet
+        p(class="text-neutral-400")
+          | #{profileUser.username} hasn't uploaded anything yet.
 
   script.
-    // Lightbox
-    document.querySelectorAll('.image-card a[target="_blank"]').forEach(link => {
-      link.addEventListener('click', (e) => {
-        e.preventDefault();
-        const lightbox = document.getElementById('lightbox');
-        const img = document.getElementById('lightbox-img');
-        img.src = link.href;
-        lightbox.classList.remove('hidden');
-        lightbox.classList.add('flex');
-      });
-    });
-
-    document.getElementById('lightbox').addEventListener('click', () => {
-      const lightbox = document.getElementById('lightbox');
-      lightbox.classList.add('hidden');
-      lightbox.classList.remove('flex');
-    });
-
-    document.addEventListener('keydown', (e) => {
-      if (e.key === 'Escape') {
-        const lightbox = document.getElementById('lightbox');
-        lightbox.classList.add('hidden');
-        lightbox.classList.remove('flex');
+    // Wait for blurhash module to load, then render
+    function waitForBlurhash(callback) {
+      if (window.blurhashDecode) {
+        callback();
+      } else {
+        setTimeout(() => waitForBlurhash(callback), 50);
       }
-    });
-
-    // Unlock button
-    const unlockBtn = document.getElementById('unlock-btn');
-    if (unlockBtn) {
-      unlockBtn.addEventListener('click', async () => {
-        unlockBtn.disabled = true;
-        unlockBtn.textContent = 'Loading...';
-        
-        const userId = unlockBtn.dataset.userId;
-        const res = await fetch(`/api/pay/${userId}`, { method: 'POST' });
-        const data = await res.json();
-        
-        if (data.url) {
-          window.location.href = data.url;
-        } else {
-          alert(data.error || 'Payment failed');
-          unlockBtn.disabled = false;
-          unlockBtn.textContent = 'Unlock Now';
-        }
-      });
     }
-
-    // Copy buttons
-    document.querySelectorAll('.copy-btn').forEach(btn => {
-      btn.addEventListener('click', async () => {
-        const text = btn.dataset.copy;
-        await navigator.clipboard.writeText(text);
-        const svg = btn.querySelector('svg');
-        svg.classList.remove('text-neutral-400');
-        svg.classList.add('text-green-400');
-        setTimeout(() => {
-          svg.classList.remove('text-green-400');
-          svg.classList.add('text-neutral-400');
-        }, 1000);
+    
+    // Render blurhash to canvas
+    async function renderBlurhash(canvas, previewId) {
+      try {
+        const res = await fetch(`/preview/${previewId}`);
+        const data = await res.json();
+        if (!data.blurhash) return;
+        
+        const width = 256;
+        const height = 256;
+        const pixels = blurhashDecode.decode(data.blurhash, width, height);
+        
+        canvas.width = width;
+        canvas.height = height;
+        const ctx = canvas.getContext('2d');
+        const imageData = ctx.createImageData(width, height);
+        imageData.data.set(pixels);
+        ctx.putImageData(imageData, 0, 0);
+      } catch (err) {
+        console.error('Blurhash render error:', err);
+      }
+    }
+    
+    // Render all blurhash canvases once module is loaded
+    waitForBlurhash(() => {
+      document.querySelectorAll('.blurhash-canvas').forEach(canvas => {
+        renderBlurhash(canvas, canvas.dataset.previewId);
       });
+    });
+    
+    // Unlock button handlers (for both header button and locked cards)
+    async function handleUnlock(userId) {
+      const res = await fetch(`/api/pay/${userId}`, { method: 'POST' });
+      const data = await res.json();
+      
+      if (data.url) {
+        window.location.href = data.url;
+      } else {
+        alert(data.error || 'Payment failed');
+      }
+    }
+    
+    // Header unlock button
+    document.querySelectorAll('.unlock-btn').forEach(btn => {
+      btn.addEventListener('click', async () => {
+        btn.disabled = true;
+        btn.innerHTML = '<span>Loading...</span>';
+        await handleUnlock(btn.dataset.userId);
+      });
+    });
+    
+    // Locked card click handlers
+    document.querySelectorAll('.locked-card').forEach(card => {
+      card.addEventListener('click', async () => {
+        await handleUnlock(card.dataset.userId);
+      });
+    });
+    
+    // Filter tabs
+    document.querySelectorAll('.filter-tab').forEach(tab => {
+      tab.addEventListener('click', () => {
+        // Update active state
+        document.querySelectorAll('.filter-tab').forEach(t => t.classList.remove('active'));
+        tab.classList.add('active');
+        
+        // Filter content
+        const filter = tab.dataset.filter;
+        document.querySelectorAll('.content-item').forEach(item => {
+          if (filter === 'all' || item.dataset.contentType === filter) {
+            item.style.display = '';
+          } else {
+            item.style.display = 'none';
+          }
+        });
+      });
+    });
+    
+    // Populate relative time badges
+    document.querySelectorAll('.time-badge').forEach(el => {
+      el.textContent = relativeTime(el.dataset.time);
     });

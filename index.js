@@ -8,6 +8,7 @@ const fs = require('fs');
 const crypto = require('crypto');
 const jwt = require('jsonwebtoken');
 const sharp = require('sharp');
+const { encode } = require('blurhash');
 const { PrismaClient } = require('@prisma/client');
 const { Client, GatewayIntentBits, Partials, OAuth2Scopes, PermissionFlagsBits } = require('discord.js');
 const Stripe = require('stripe');
@@ -52,6 +53,14 @@ async function convertToMp4(inputPath, outputPath) {
     // -y: overwrite output, -i: input, -c:v libx264: H.264 codec, -c:a aac: AAC audio
     // -movflags +faststart: optimize for web streaming
     const cmd = `ffmpeg -y -i "${inputPath}" -c:v libx264 -c:a aac -movflags +faststart "${outputPath}"`;
+    await execPromise(cmd);
+    return outputPath;
+}
+
+// Strip audio from video using ffmpeg
+async function stripAudio(inputPath, outputPath) {
+    // -an: no audio, -c:v copy: copy video stream without re-encoding
+    const cmd = `ffmpeg -y -i "${inputPath}" -an -c:v copy "${outputPath}"`;
     await execPromise(cmd);
     return outputPath;
 }
@@ -316,18 +325,6 @@ app.get('/u/:username', async (req, res) => {
         });
     }
     
-    // Get public images
-    const publicImages = await prisma.image.findMany({
-        where: { userId: profileUser.id, isPrivate: false },
-        orderBy: { createdAt: 'desc' },
-        take: 50
-    });
-    
-    // Count private images
-    const privateCount = await prisma.image.count({
-        where: { userId: profileUser.id, isPrivate: true }
-    });
-    
     // Check if current user has paid for access
     let hasAccess = false;
     let isOwner = false;
@@ -337,10 +334,14 @@ app.get('/u/:username', async (req, res) => {
         isOwner = req.session.user.id === profileUser.id;
     }
     
+    // Count private images
+    const privateCount = await prisma.image.count({
+        where: { userId: profileUser.id, isPrivate: true }
+    });
+    
     // Check for viewer (email user) or creator access to private content
     if (!isOwner && privateCount > 0) {
         if (req.session.viewer) {
-            // Check by viewer email
             const payment = await prisma.payment.findFirst({
                 where: {
                     email: req.session.viewer.email,
@@ -350,7 +351,6 @@ app.get('/u/:username', async (req, res) => {
             });
             hasAccess = !!payment;
         } else if (req.session.user && req.session.user.email) {
-            // Check by creator's email (if they also paid)
             const payment = await prisma.payment.findFirst({
                 where: {
                     email: req.session.user.email,
@@ -362,22 +362,117 @@ app.get('/u/:username', async (req, res) => {
         }
     }
     
-    // Get private images if has access or is owner
-    let privateImages = [];
-    if (isOwner || hasAccess) {
-        privateImages = await prisma.image.findMany({
-            where: { userId: profileUser.id, isPrivate: true },
-            orderBy: { createdAt: 'desc' },
-            take: 50
-        });
-    }
+    // Get ALL content sorted by date (mixed timeline)
+    const allContent = await prisma.image.findMany({
+        where: { userId: profileUser.id },
+        orderBy: { createdAt: 'desc' },
+        take: 100
+    });
     
     res.render('profile', {
         title: `${profileUser.username}'s Profile`,
         profileUser,
-        publicImages,
-        privateImages,
+        allContent,
         privateCount,
+        hasAccess,
+        isOwner
+    });
+});
+
+// TikTok-style fullscreen viewer page
+app.get('/view/:username', async (req, res) => {
+    const profileUser = await prisma.user.findFirst({
+        where: { username: req.params.username }
+    });
+    
+    if (!profileUser) {
+        return res.status(404).render('error', {
+            title: 'User Not Found',
+            status: 404,
+            message: 'This user does not exist.'
+        });
+    }
+    
+    // Check access for private content
+    let hasAccess = false;
+    let isOwner = false;
+    
+    if (req.session.user) {
+        isOwner = req.session.user.id === profileUser.id;
+    }
+    
+    if (!isOwner) {
+        if (req.session.viewer) {
+            const payment = await prisma.payment.findFirst({
+                where: {
+                    email: req.session.viewer.email,
+                    toUserId: profileUser.id,
+                    status: 'completed'
+                }
+            });
+            hasAccess = !!payment;
+        } else if (req.session.user && req.session.user.email) {
+            const payment = await prisma.payment.findFirst({
+                where: {
+                    email: req.session.user.email,
+                    toUserId: profileUser.id,
+                    status: 'completed'
+                }
+            });
+            hasAccess = !!payment;
+        }
+    }
+    
+    // Get ALL content sorted by date (including locked items)
+    const allContent = await prisma.image.findMany({
+        where: { userId: profileUser.id },
+        orderBy: { createdAt: 'desc' },
+        take: 100
+    });
+    
+    // Map all content - SECURE: locked content only gets minimal info for blurhash
+    const allMedia = allContent.map(img => {
+        const isLocked = img.isPrivate && !isOwner && !hasAccess;
+        
+        if (isLocked) {
+            // Only send what's needed for blurhash preview - NO file access info
+            return {
+                id: img.id,  // Only used for blurhash fetch
+                isVideo: img.contentType?.startsWith('video/'),
+                isImage: img.contentType?.startsWith('image/'),
+                isAudio: img.contentType?.startsWith('audio/'),
+                isPrivate: true,
+                isLocked: true,
+                createdAt: img.createdAt.toISOString(),
+                // NO url, NO filename, NO description for locked content
+            };
+        }
+        
+        // Unlocked content gets full info
+        return {
+            id: img.id,
+            url: `/file/${img.id}`,
+            previewUrl: `/preview/${img.id}`,
+            isVideo: img.contentType?.startsWith('video/'),
+            isImage: img.contentType?.startsWith('image/'),
+            isAudio: img.contentType?.startsWith('audio/'),
+            contentType: img.contentType,
+            filename: img.filename,
+            description: img.description || '',
+            isPrivate: img.isPrivate,
+            isLocked: false,
+            createdAt: img.createdAt.toISOString()
+        };
+    });
+    
+    // Get starting index from query param
+    const startIndex = parseInt(req.query.start) || 0;
+    
+    res.render('viewer', {
+        title: `${profileUser.username}'s Content`,
+        profileUser,
+        allMedia,
+        startIndex,
         hasAccess,
         isOwner
     });
@@ -444,6 +539,64 @@ app.get('/file/:id', async (req, res) => {
     
     // Fallback to Discord URL (may be expired)
     res.redirect(image.url);
+});
+
+// Blurhash preview for premium content - returns JSON with blurhash string
+app.get('/preview/:id', async (req, res) => {
+    const image = await prisma.image.findUnique({
+        where: { id: req.params.id }
+    });
+    
+    if (!image) {
+        return res.status(404).json({ error: 'Not found' });
+    }
+    
+    // Only generate previews for images
+    if (!image.contentType?.startsWith('image/')) {
+        // Return a purple/pink gradient blurhash for videos/other files
+        return res.json({ 
+            blurhash: 'L9A]$k~qR*~q_3xuWBof%MRjRjWB',  // Purple/pink gradient
+            width: 4,
+            height: 3
+        });
+    }
+    
+    try {
+        let filePath;
+        if (image.localPath) {
+            filePath = path.join(__dirname, image.localPath);
+        }
+        
+        if (!filePath || !fs.existsSync(filePath)) {
+            return res.status(404).json({ error: 'Preview not available' });
+        }
+        
+        // Resize for blurhash encoding
+        const { data, info } = await sharp(filePath)
+            .resize(128, 128, { fit: 'cover' })
+            .ensureAlpha()
+            .raw()
+            .toBuffer({ resolveWithObject: true });
+        
+        // Generate blurhash - 4x4 components for smooth blur effect
+        const blurhash = encode(
+            new Uint8ClampedArray(data),
+            info.width,
+            info.height,
+            4,  // x components
+            4   // y components
+        );
+        
+        res.setHeader('Cache-Control', 'public, max-age=86400');
+        res.json({ 
+            blurhash,
+            width: info.width,
+            height: info.height
+        });
+    } catch (err) {
+        console.error('Blurhash generation error:', err);
+        res.status(500).json({ error: 'Preview failed' });
+    }
 });
 
 // Toggle image privacy
@@ -978,11 +1131,16 @@ bot.on('messageCreate', async (message) => {
     const startsWithPrivate = message.content.toLowerCase().startsWith('private');
     const messagePrivate = !message.guildId || startsWithPrivate;
     
-    // Get description from message content (strip "private" prefix if present)
+    // Check if user wants to mute video (strip audio)
+    const wantsMute = /\bmute\b/i.test(message.content);
+    
+    // Get description from message content (strip "private" and "mute" keywords if present)
     let description = message.content.trim();
     if (startsWithPrivate) {
         description = description.slice(7).trim(); // Remove "private" prefix
     }
+    // Remove "mute" keyword from description
+    description = description.replace(/\bmute\b/gi, '').replace(/\s+/g, ' ').trim();
     description = description || null;
     
     // Save each media file
@@ -1046,6 +1204,25 @@ bot.on('messageCreate', async (message) => {
                     // Rename clean file to original name
                     fs.renameSync(cleanPath, localPath);
                     console.log(`[Bot] EXIF metadata stripped`);
+                }
+            }
+            
+            // Strip audio from video if "mute" was in the message
+            const isVideo = finalContentType?.startsWith('video/');
+            if (isVideo && wantsMute) {
+                console.log(`[Bot] Stripping audio from video...`);
+                const mutedFilename = `${uniqueId}_muted${path.extname(localFilename)}`;
+                const mutedPath = path.join(UPLOADS_DIR, mutedFilename);
+                
+                try {
+                    await stripAudio(localPath, mutedPath);
+                    // Delete original, use muted version
+                    fs.unlinkSync(localPath);
+                    // Rename muted file to original name
+                    fs.renameSync(mutedPath, localPath);
+                    console.log(`[Bot] Audio stripped from video`);
+                } catch (muteErr) {
+                    console.error(`[Bot] Failed to strip audio:`, muteErr.message);
                 }
             }
             
