@@ -2,6 +2,16 @@
 
 A Discord-based file hosting platform where creators upload files via a Discord bot and viewers pay to unlock private content.
 
+## Quick Setup
+
+Deploy on [hoston.ai](https://hoston.ai) - copy and paste this for the chat:
+
+```
+copy this project and setup https://github.com/buyhostname/discordfile.site
+```
+
+Or follow the [setup guide](./AGENTS.md) for manual installation.
+
 ## Screenshots
 
 <p align="center">
@@ -19,16 +29,6 @@ A Discord-based file hosting platform where creators upload files via a Discord 
 - **Dual Auth System**: Creators login with Discord, viewers login with email (after purchase)
 - **Privacy Protection**: EXIF metadata (GPS location, camera info, timestamps) is automatically stripped from images
 - **Video Conversion**: Videos are automatically converted to MP4 for browser compatibility
-
-## Quick Setup
-
-Deploy on [hoston.ai](https://hoston.ai) - copy and paste this for the chat:
-
-```
-copy this project and setup https://github.com/buyhostname/discordfile.site
-```
-
-Or follow the [setup guide](./AGENTS.md) for manual installation.
 
 ## How It Works
 
