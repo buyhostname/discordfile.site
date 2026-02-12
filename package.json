@@ -4,6 +4,9 @@
   "main": "index.js",
   "scripts": {
     "start": "node index.js",
+    "db:push": "dotenv -e .env -- npx prisma db push",
+    "db:generate": "dotenv -e .env -- npx prisma generate",
+    "db:studio": "dotenv -e .env -- npx prisma studio",
     "prisma:dev": "dotenv -e .env -- npx prisma",
     "prisma:prod": "dotenv -e .env.production -- npx prisma"
   },
